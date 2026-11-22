@@ -158,6 +158,15 @@ section:nth-child(even) { background: rgba(0,0,0,0.03); }
 .project-links { display: flex; gap: 0.75rem; }
 .project-links a { font-size: 0.85rem; color: var(--primary); font-weight: 500; }
 
+/* Coding Stats */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.5rem; }
+.stat-card { background: white; border-radius: var(--radius); border: 1px solid #e5e7eb; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.stat-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+.stat-value { font-size: 2rem; font-weight: 900; color: var(--primary); }
+.stat-sub { font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem; }
+.stat-chips { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.stat-chip { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: #f3f4f6; color: #374151; }
+
 /* Achievements */
 .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; }
 .achievement-card {
@@ -330,11 +339,52 @@ function generateHTML(data: PortfolioData): string {
     </div>
   `).join('');
 
+  const leetcode = data.platformProfiles?.leetcode;
+  const codeforces = data.platformProfiles?.codeforces;
+  const github = data.platformProfiles?.github;
+  const hasStats = Boolean(leetcode || codeforces || github || (data.codingStats && (data.codingStats.totalProblemsSolved || data.codingStats.ratings?.length)));
+
+  const statsHTML = hasStats ? `
+    <div class="stats-grid">
+      ${leetcode ? `
+        <div class="stat-card">
+          <div class="stat-title">🧩 LeetCode (@${escapeHtml(leetcode.username)})</div>
+          <div class="stat-value">${leetcode.totalSolved}</div>
+          <div class="stat-sub">Problems Solved</div>
+          <div class="stat-chips">
+            <span class="stat-chip">Easy: ${leetcode.easySolved}</span>
+            <span class="stat-chip">Med: ${leetcode.mediumSolved}</span>
+            <span class="stat-chip">Hard: ${leetcode.hardSolved}</span>
+          </div>
+        </div>
+      ` : ''}
+      ${codeforces ? `
+        <div class="stat-card">
+          <div class="stat-title">⚔️ Codeforces (@${escapeHtml(codeforces.handle)})</div>
+          <div class="stat-value">${codeforces.rating || 'Unrated'}</div>
+          <div class="stat-sub">Contest Rating (${escapeHtml(codeforces.rank)})</div>
+          ${codeforces.maxRating > 0 ? `<div class="stat-chips"><span class="stat-chip">Peak: ${codeforces.maxRating}</span></div>` : ''}
+        </div>
+      ` : ''}
+      ${github ? `
+        <div class="stat-card">
+          <div class="stat-title">⚙ GitHub (@${escapeHtml(github.username)})</div>
+          <div class="stat-value">${github.publicRepos}</div>
+          <div class="stat-sub">Public Repositories</div>
+          <div class="stat-chips">
+            ${github.languages.slice(0, 3).map((l: string) => `<span class="stat-chip">${escapeHtml(l)}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  ` : '';
+
   const tpl = getTemplate(data.templateId);
   const terms = tpl.terms;
 
   const sections = [
     ...(personal.bio ? ['about'] : []),
+    ...(hasStats ? ['stats'] : []),
     ...(skills.length > 0 ? ['skills'] : []),
     ...(experience.length > 0 ? ['experience'] : []),
     ...(education.length > 0 ? ['education'] : []),
@@ -371,7 +421,7 @@ ${sections.length > 0 ? `
 <nav>
   <ul>
     ${sections.map((s) => {
-      const label = s === 'about' ? terms.about : s === 'skills' ? terms.skills : s === 'experience' ? terms.experience : s === 'education' ? terms.education : s === 'projects' ? terms.projects : terms.achievements;
+      const label = s === 'about' ? terms.about : s === 'stats' ? 'Stats' : s === 'skills' ? terms.skills : s === 'experience' ? terms.experience : s === 'education' ? terms.education : s === 'projects' ? terms.projects : terms.achievements;
       return `<li><a href="#${s}">${escapeHtml(label)}</a></li>`;
     }).join('\n    ')}
   </ul>
@@ -383,6 +433,12 @@ ${sections.length > 0 ? `
   <section id="about">
     <h2 class="section-title">${escapeHtml(terms.about)}</h2>
     <p class="bio">${escapeHtml(personal.bio)}</p>
+  </section>` : ''}
+
+  ${hasStats ? `
+  <section id="stats">
+    <h2 class="section-title">Verified Profiles & Statistics</h2>
+    ${statsHTML}
   </section>` : ''}
 
   ${skills.length > 0 ? `

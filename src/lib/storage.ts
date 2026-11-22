@@ -4,6 +4,37 @@ import { PortfolioData, DEFAULT_PORTFOLIO } from './types';
 
 const STORAGE_KEY = 'portcraft_portfolio';
 
+/**
+ * Migrates old-format portfolio data to the current schema,
+ * filling in safe defaults for any missing new fields.
+ */
+export function migratePortfolioData(old: Partial<PortfolioData>): PortfolioData {
+  return {
+    // Spread defaults first so every required field is present
+    ...DEFAULT_PORTFOLIO,
+    // Overlay whatever the old data had
+    ...old,
+    // Deep-merge sub-objects that existed before
+    personal: { ...DEFAULT_PORTFOLIO.personal, ...(old.personal ?? {}) },
+    theme: { ...DEFAULT_PORTFOLIO.theme, ...(old.theme ?? {}) },
+    // Array fields — keep existing data or fall back to empty array
+    education: old.education ?? [],
+    experience: old.experience ?? [],
+    skills: old.skills ?? [],
+    projects: old.projects ?? [],
+    achievements: old.achievements ?? [],
+    // New platform fields — keep if present, otherwise safe defaults
+    repositories: old.repositories ?? [],
+    codingStats: old.codingStats ?? undefined,
+    publications: old.publications ?? [],
+    certifications: old.certifications ?? [],
+    platformProfiles: old.platformProfiles ?? undefined,
+    importSession: old.importSession ?? undefined,
+    aiState: old.aiState ?? undefined,
+    sourceRecords: old.sourceRecords ?? [],
+  };
+}
+
 export function savePortfolio(data: PortfolioData): void {
   try {
     const toSave = { ...data, lastUpdated: new Date().toISOString() };
@@ -17,14 +48,8 @@ export function loadPortfolio(): PortfolioData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PORTFOLIO;
-    const parsed = JSON.parse(raw) as PortfolioData;
-    // Merge with defaults to handle schema migrations
-    return {
-      ...DEFAULT_PORTFOLIO,
-      ...parsed,
-      personal: { ...DEFAULT_PORTFOLIO.personal, ...parsed.personal },
-      theme: { ...DEFAULT_PORTFOLIO.theme, ...parsed.theme },
-    };
+    const parsed = JSON.parse(raw) as Partial<PortfolioData>;
+    return migratePortfolioData(parsed);
   } catch {
     return DEFAULT_PORTFOLIO;
   }

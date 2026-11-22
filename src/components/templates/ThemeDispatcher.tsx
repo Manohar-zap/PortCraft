@@ -44,15 +44,17 @@ import {
   ThemeCloudKingdom,
   ThemeInfiniteMuseum,
 } from './themes/ThemesOriginalWorlds2';
+import VerifiedProfileStats from './VerifiedProfileStats';
 
 interface Props {
   data: PortfolioData;
 }
 
 export default function ThemeDispatcher({ data }: Props) {
-  const id = data.templateId || 'spider-verse';
+  const renderTheme = () => {
+    const id = data.templateId || 'spider-verse';
 
-  switch (id) {
+    switch (id) {
     // 01-15: Franchise / Genre-inspired
     case 'spider-verse':
     case 'miles-morales':
@@ -124,5 +126,13 @@ export default function ThemeDispatcher({ data }: Props) {
 
     default:
       return <ThemeSpiderVerse data={data} />;
-  }
+    }
+  };
+
+  return (
+    <div>
+      {renderTheme()}
+      <VerifiedProfileStats data={data} />
+    </div>
+  );
 }

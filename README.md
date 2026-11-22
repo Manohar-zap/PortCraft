@@ -1,47 +1,117 @@
 # PortCraft 🚀
+> **Student Digital Profile Aggregator + AI Portfolio Builder**
+>
+> Connect your coding and development profiles, consolidate achievements, and generate a personalized portfolio across **30 fictional universe themes** with Google Gemini AI assistance.
 
-> **Build a professional portfolio in minutes. No coding. No AI. No backend. 100% free.**
+PortCraft is an educational and student portfolio platform. Students can connect their existing coding, development, and professional profiles (GitHub, LeetCode, Codeforces, HackerRank, etc.), aggregate verified statistics, review and approve imported data, and generate a customized portfolio website.
 
-PortCraft is a frontend-only portfolio website builder. Users provide their personal, educational, professional and project information, select a portfolio design template from **30 distinct fictional themes**, and automatically generate a personalized portfolio website.
+---
 
-## ✨ Features
+## ✨ Key Capabilities
 
-- **100% Browser-Based** — No server, no database, no uploads
-- **No AI Required** — Your portfolio is generated directly from your data
-- **30 Fictional World Themes** — 15 Franchise/Genre-Inspired + 15 Original PortCraft Worlds
-- **Meaningful Visual Distinction** — Unique layouts, signatures, and terminology mapping
-- **Live Customization** — Change colors, fonts, layouts, and dark mode in real-time
-- **Multi-step Builder** — Guided form for all personal, educational, and professional info
-- **Free HTML/CSS Export** — Download a complete, standalone deployable website ZIP
-- **No Account Required** — Your data stays in your browser's localStorage only
+### 1. 🌐 Universal Profile Import (`/connect`)
+- **Coding Platforms**: LeetCode (problems solved, difficulty breakdown), Codeforces (ratings, peak ranking), HackerRank, CodeChef, GeeksforGeeks.
+- **Development Platforms**: GitHub (public repositories, stargazers, forks, languages, topics), GitLab.
+- **Data Science & Research**: Kaggle (medals, tiers, profile link), Google Scholar.
+- **Professional**: LinkedIn profile linking, resume PDF/DOCX import fallback.
+- **Privacy First**: Respects official platform permissions, no credential storage, public endpoints only.
+
+### 2. 📊 Profile Analysis Dashboard (`/dashboard`)
+- Real-time profile completeness score and readiness breakdown.
+- Aggregated coding statistics (LeetCode difficulty distribution, Codeforces contest performance).
+- Public GitHub repository explorer and language distribution.
+- One-click AI Profile Analysis for strengths, gaps, and career recommendations.
+
+### 3. 🛡️ User Review & Approval System (`/review`)
+- Complete transparency: nothing is published without user consent.
+- **Duplicate Project Detection**: Fuzzy matching identifies likely duplicates across platforms with one-click merging.
+- Select featured repositories and projects to display.
+- Edit bios, headlines, and descriptions before generation.
+
+### 4. 🤖 Google Gemini AI Integration
+- **Portfolio Generation** (`/api/ai/generate`): Generates impactful bios, headlines, and project summaries from verified facts without fabricating credentials.
+- **PortCraft AI Assistant** (`src/components/ai/ChatWidget.tsx`): Persistent conversational AI helper on builder and preview pages with an approval-based action system.
+- **Section Improvement** (`/api/ai/improve`): Rewrite specific sections with custom instructions.
+
+### 5. 🎨 30 Fictional Portfolio Themes with Verified Stats
+- All 30 fictional universe themes support student introductions, education, skills, projects, experience, verified coding statistics, and GitHub repositories.
+- Zero layout breakage: dynamic `VerifiedProfileStats` component matches all themes.
+- Client-side static ZIP export packages full HTML/CSS/JS with coding statistics.
+
+---
 
 ## 🗂️ Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router + Turbopack) |
-| Language | TypeScript |
-| Styling | Tailwind CSS |
-| Animations | Framer Motion |
-| Icons | Lucide React |
-| Export | JSZip |
-| Storage | localStorage |
-| Deployment | Vercel / GitHub Pages |
+|---|---|
+| **Framework** | Next.js 16 (App Router + Turbopack) |
+| **Language** | TypeScript |
+| **AI** | Google Gen AI SDK (`@google/genai`) with Gemini 2.0 Flash |
+| **Styling** | Tailwind CSS 4 |
+| **Animations** | Framer Motion |
+| **Icons** | Lucide React |
+| **Export** | JSZip (client-side standalone website packages) |
+| **Storage** | Local-first browser localStorage |
+| **Deployment** | Vercel (Serverless Functions) |
+
+---
 
 ## 🏃 Getting Started
 
+### 1. Clone & Install
 ```bash
-# Install dependencies
+git clone https://github.com/Manohar-zap/PortCraft.git
+cd PortCraft
 npm install
+```
 
-# Start development server
+### 2. Configure Environment Variables
+Copy `.env.local.example` to `.env.local`:
+```bash
+cp .env.local.example .env.local
+```
+
+Edit `.env.local`:
+```env
+# Required for AI features (portfolio generation, chatbot, content improvement)
+# Get key at: https://aistudio.google.com/app/apikey
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional: Override default model (default: gemini-2.0-flash)
+GEMINI_MODEL=gemini-2.0-flash
+
+# Optional: Higher GitHub API rate limits (5000/hr vs 60/hr)
+GITHUB_TOKEN=your_github_token_here
+```
+
+> **Note**: PortCraft functions fully even without `GEMINI_API_KEY`! In offline/no-key mode, all manual builder features, theme previews, and ZIP exports continue to work seamlessly.
+
+### 3. Run Development Server
+```bash
 npm run dev
-
-# Build for production
-npm run build
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### 4. Production Build
+```bash
+npm run build
+```
+
+---
+
+## 🚀 Deployment to Vercel
+
+PortCraft is optimized for deployment on [Vercel](https://vercel.com):
+
+1. Push your repository to GitHub.
+2. Import the repository into your Vercel Dashboard.
+3. In Project Settings → **Environment Variables**, add:
+   - `GEMINI_API_KEY` = your Google AI Studio API key
+   - `GITHUB_TOKEN` = (optional) your GitHub token
+4. Click **Deploy**. Both the static pages and the serverless API routes (`/api/*`) deploy automatically.
+
+---
 
 ## 🎨 30 Fictional Portfolio Themes
 

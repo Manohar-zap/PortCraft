@@ -15,6 +15,7 @@ import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import Customizer from '@/components/customizer/Customizer';
 
 import ThemeDispatcher from '@/components/templates/ThemeDispatcher';
+import ChatWidget from '@/components/ai/ChatWidget';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -216,6 +217,9 @@ export default function PreviewPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Persistent AI Assistant */}
+      <ChatWidget data={data} updateData={updateData} selectedTheme={data.templateId} />
     </div>
   );
 }

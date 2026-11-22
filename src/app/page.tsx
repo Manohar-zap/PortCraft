@@ -36,7 +36,7 @@ export default function LandingPage() {
 
 /* ─── Navigation ─────────────────────────────────────────── */
 function Nav() {
-  const links = ['Features', 'How It Works', 'Templates', 'FAQ'];
+  const links = ['Connect', 'Features', 'How It Works', 'Templates', 'FAQ'];
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -49,24 +49,32 @@ function Nav() {
         </Link>
         {/* Desktop links */}
         <div className="hidden md:flex items-center gap-6 text-sm text-white/70">
-          {links.map((l) => (
-            <a
-              key={l}
-              href={`#${l.toLowerCase().replace(/ /g, '-')}`}
-              className="hover:text-white transition-colors"
-            >
-              {l}
-            </a>
-          ))}
+          <Link href="/connect" className="text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 transition-colors">
+            <Sparkles size={13} />
+            Connect Profiles
+          </Link>
+          <a href="#features" className="hover:text-white transition-colors">Features</a>
+          <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
+          <a href="#templates" className="hover:text-white transition-colors">Templates (30)</a>
+          <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </div>
         {/* CTA */}
-        <Link
-          href="/builder"
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 active:scale-95"
-        >
-          Create Portfolio
-          <ArrowRight size={15} />
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/connect"
+            className="hidden sm:flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-all"
+          >
+            <Sparkles size={13} className="text-violet-400" />
+            Connect
+          </Link>
+          <Link
+            href="/builder"
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 active:scale-95"
+          >
+            Create Portfolio
+            <ArrowRight size={15} />
+          </Link>
+        </div>
       </div>
     </nav>
   );
@@ -92,7 +100,7 @@ function Hero() {
           className="inline-flex items-center gap-2 bg-violet-900/40 border border-violet-500/30 text-violet-300 text-sm px-4 py-2 rounded-full mb-8"
         >
           <Sparkles size={14} />
-          100% Free · No AI · No Backend
+          Profile Aggregator · Gemini AI Builder · 30 Fictional Themes
           <Sparkles size={14} />
         </motion.div>
 
@@ -116,8 +124,8 @@ function Hero() {
           custom={1}
           className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-10 leading-relaxed"
         >
-          Build a professional portfolio that represents your skills, projects and personality.
-          No coding. No AI. Just your information and the design you choose.
+          Connect GitHub, LeetCode, Codeforces, and HackerRank to auto-generate a verified student portfolio.
+          Customize with PortCraft AI across 30 fictional universe themes.
         </motion.p>
 
         {/* CTA Buttons */}
@@ -129,18 +137,25 @@ function Hero() {
           className="flex flex-col sm:flex-row items-center justify-center gap-4"
         >
           <Link
-            href="/builder"
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-bold text-lg px-8 py-4 rounded-xl transition-all hover:scale-105 active:scale-95 glow-purple-sm"
+            href="/connect"
+            className="flex items-center gap-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white font-bold text-base md:text-lg px-7 py-4 rounded-xl transition-all hover:scale-105 active:scale-95 glow-purple-sm shadow-xl"
           >
-            Create My Portfolio
-            <ArrowRight size={20} />
+            <Sparkles size={19} />
+            Connect & Auto-Build
+            <ArrowRight size={18} />
+          </Link>
+          <Link
+            href="/builder"
+            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-base md:text-lg px-7 py-4 rounded-xl transition-all"
+          >
+            Manual Builder
           </Link>
           <a
             href="#templates"
-            className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-lg px-8 py-4 rounded-xl transition-all"
+            className="flex items-center gap-1.5 text-white/60 hover:text-white font-medium text-sm px-4 py-2 transition-colors"
           >
-            <Eye size={20} />
-            Explore Templates
+            <Eye size={16} />
+            Explore 30 Themes
           </a>
         </motion.div>
 

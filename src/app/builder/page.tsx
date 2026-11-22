@@ -9,6 +9,7 @@ import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { PortfolioData, generateId } from '@/lib/types';
 import { TEMPLATES } from '@/lib/templates';
 import { getSamplePortfolio } from '@/lib/sampleProfiles';
+import ChatWidget from '@/components/ai/ChatWidget';
 
 // Step components
 import StepPersonal from '@/components/builder/StepPersonal';
@@ -94,7 +95,15 @@ function BuilderContent() {
           </div>
           <span className="text-gradient text-sm font-poppins">PortCraft Builder</span>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2.5">
+          <Link
+            href="/connect"
+            className="flex items-center gap-1.5 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 px-2.5 py-1.5 rounded-lg transition-all"
+            title="Import data from GitHub, LeetCode, Codeforces"
+          >
+            <Sparkles size={12} className="text-violet-400" />
+            <span className="hidden sm:inline">Connect Profiles</span>
+          </Link>
           <button
             type="button"
             onClick={() => {
@@ -105,8 +114,7 @@ function BuilderContent() {
             title="Populate builder with realistic sample data for testing"
           >
             <Sparkles size={12} className="text-violet-400" />
-            <span className="hidden sm:inline">Load Sample Data</span>
-            <span className="sm:hidden">Sample</span>
+            <span className="hidden sm:inline">Load Sample</span>
           </button>
           <div className="flex items-center gap-1.5 text-xs text-white/40">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
@@ -207,6 +215,9 @@ function BuilderContent() {
           )}
         </div>
       </div>
+
+      {/* Persistent AI Assistant */}
+      <ChatWidget data={data} updateData={updateData} selectedTheme={data.templateId} />
     </div>
   );
 }
