@@ -1,6 +1,7 @@
 import React from 'react';
 import { PortfolioData } from '@/lib/types';
 
+// The 10 Flagship Worlds
 import SpiderVerseTheme from './worlds/spiderverse/SpiderVerseTheme';
 import GothamTheme from './worlds/gotham/GothamTheme';
 import CyberpunkTheme from './worlds/cyberpunk/CyberpunkTheme';
@@ -12,121 +13,82 @@ import EditorialTheme from './worlds/editorial/EditorialTheme';
 import CreativeStudioTheme from './worlds/creativestudio/CreativeStudioTheme';
 import DataScientistTheme from './worlds/datascientist/DataScientistTheme';
 
-// Import remaining original worlds for full 30-template preservation
-import {
-  ThemeComicPop,
-  ThemeAnimeDimension,
-} from './themes/ThemesComicAction';
-import {
-  ThemeArcReactor,
-  ThemeShadowProtocol,
-} from './themes/ThemesCyberTech';
-import {
-  ThemeDesertDynasty,
-  ThemeAssassin,
-  ThemeGalacticFrontier,
-  ThemeTimekeeper,
-  ThemeKingdomOfInk,
-} from './themes/ThemesEpicCinematic';
-import {
-  ThemeBrickverse,
-  ThemeViceCity,
-} from './themes/ThemesPlayfulGaming';
-import {
-  ThemeMysticDimension,
-  ThemeOrbitalAcademy,
-  ThemeFrostbyte,
-  ThemeSolarForge,
-  ThemeDeepSea,
-} from './themes/ThemesOriginalWorlds1';
-import {
-  ThemeDreamscape,
-  ThemeWasteland,
-  ThemeMechaWorkshop,
-  ThemeCloudKingdom,
-} from './themes/ThemesOriginalWorlds2';
+// The 20 Redesigned Classic Worlds
+import ArcReactorTheme from './worlds/arcreactor/ArcReactorTheme';
+import MysticDimensionTheme from './worlds/mystic/MysticDimensionTheme';
+import DesertDynastyTheme from './worlds/desert/DesertDynastyTheme';
+import BrickverseTheme from './worlds/brickverse/BrickverseTheme';
+import ComicPopTheme from './worlds/comicpop/ComicPopTheme';
+import AnimeDimensionTheme from './worlds/anime/AnimeDimensionTheme';
+import ViceCityTheme from './worlds/vicecity/ViceCityTheme';
+import AssassinTheme from './worlds/assassin/AssassinTheme';
+import GalacticFrontierTheme from './worlds/galactic/GalacticFrontierTheme';
+import OrbitalAcademyTheme from './worlds/orbital/OrbitalAcademyTheme';
+import FrostbyteTheme from './worlds/frostbyte/FrostbyteTheme';
+import SolarForgeTheme from './worlds/solarforge/SolarForgeTheme';
+import DeepSeaExplorerTheme from './worlds/deepsea/DeepSeaExplorerTheme';
+import TimekeeperTheme from './worlds/timekeeper/TimekeeperTheme';
+import DreamscapeTheme from './worlds/dreamscape/DreamscapeTheme';
+import WastelandSurvivorTheme from './worlds/wasteland/WastelandSurvivorTheme';
+import MechaWorkshopTheme from './worlds/mechaworkshop/MechaWorkshopTheme';
+import KingdomOfInkTheme from './worlds/kingdomofink/KingdomOfInkTheme';
+import CloudKingdomTheme from './worlds/cloudkingdom/CloudKingdomTheme';
+import ShadowProtocolTheme from './worlds/shadowprotocol/ShadowProtocolTheme';
 
-export interface ThemeDefinition {
-  id: string;
-  name: string;
-  category: string;
-  description: string;
-  component: React.ComponentType<{ data: PortfolioData }>;
-  aliases?: string[];
-}
-
-export const FLAGSHIP_WORLDS: Record<string, React.ComponentType<{ data: PortfolioData }>> = {
-  // 1. Spider-Verse
+export const THEME_REGISTRY: Record<string, React.ComponentType<{ data: PortfolioData }>> = {
+  // 01-10 Flagship Worlds
   'spider-verse': SpiderVerseTheme,
   'miles-morales': SpiderVerseTheme,
-
-  // 2. Gotham Noir / Dark Detective
   'gotham-noir': GothamTheme,
   'batman': GothamTheme,
-
-  // 3. Cyberpunk / Night City
   'night-city': CyberpunkTheme,
   'cyberpunk': CyberpunkTheme,
-
-  // 4. Retro RPG / Pixel Hero
   'blocklands': RetroRpgTheme,
   'retro-rpg': RetroRpgTheme,
   'pixel-rpg': RetroRpgTheme,
-
-  // 5. Terminal / Matrix Hacker
   'code-reality': TerminalTheme,
   'terminal': TerminalTheme,
   'hacker': TerminalTheme,
   'tech': TerminalTheme,
-
-  // 6. Modern Bento Grid
   'digital-grid': BentoTheme,
   'bento': BentoTheme,
-
-  // 7. Swiss Minimalist
   'infinite-museum': MinimalistTheme,
   'minimalist': MinimalistTheme,
   'swiss': MinimalistTheme,
-
-  // 8. Editorial / The Magazine
   'celestial-library': EditorialTheme,
   'editorial': EditorialTheme,
-
-  // 9. Creative Studio / Avant-Garde
   'neon-nomad': CreativeStudioTheme,
   'creative': CreativeStudioTheme,
   'creative-studio': CreativeStudioTheme,
-
-  // 10. Data Scientist / Research Lab
   'quantum-lab': DataScientistTheme,
   'data-scientist': DataScientistTheme,
 
-  // Preserved original worlds & franchise inspirations
-  'arc-reactor': ThemeArcReactor,
-  'mystic-dimension': ThemeMysticDimension,
-  'desert-dynasty': ThemeDesertDynasty,
-  'elegant': ThemeDesertDynasty,
-  'brickverse': ThemeBrickverse,
-  'comic-pop': ThemeComicPop,
-  'anime-dimension': ThemeAnimeDimension,
-  'vice-city': ThemeViceCity,
-  'assassin': ThemeAssassin,
-  'galactic-frontier': ThemeGalacticFrontier,
-  'orbital-academy': ThemeOrbitalAcademy,
-  'frostbyte': ThemeFrostbyte,
-  'solar-forge': ThemeSolarForge,
-  'deep-sea-explorer': ThemeDeepSea,
-  'timekeeper': ThemeTimekeeper,
-  'dreamscape': ThemeDreamscape,
-  'wasteland-survivor': ThemeWasteland,
-  'mecha-workshop': ThemeMechaWorkshop,
-  'kingdom-of-ink': ThemeKingdomOfInk,
-  'cloud-kingdom': ThemeCloudKingdom,
-  'shadow-protocol': ThemeShadowProtocol,
+  // 11-30 Redesigned Classic Worlds
+  'arc-reactor': ArcReactorTheme,
+  'mystic-dimension': MysticDimensionTheme,
+  'desert-dynasty': DesertDynastyTheme,
+  'elegant': DesertDynastyTheme,
+  'brickverse': BrickverseTheme,
+  'comic-pop': ComicPopTheme,
+  'anime-dimension': AnimeDimensionTheme,
+  'vice-city': ViceCityTheme,
+  'assassin': AssassinTheme,
+  'galactic-frontier': GalacticFrontierTheme,
+  'orbital-academy': OrbitalAcademyTheme,
+  'frostbyte': FrostbyteTheme,
+  'solar-forge': SolarForgeTheme,
+  'deep-sea-explorer': DeepSeaExplorerTheme,
+  'timekeeper': TimekeeperTheme,
+  'dreamscape': DreamscapeTheme,
+  'wasteland-survivor': WastelandSurvivorTheme,
+  'mecha-workshop': MechaWorkshopTheme,
+  'kingdom-of-ink': KingdomOfInkTheme,
+  'cloud-kingdom': CloudKingdomTheme,
+  'shadow-protocol': ShadowProtocolTheme,
 };
 
 export function getThemeComponent(templateId?: string): React.ComponentType<{ data: PortfolioData }> {
   if (!templateId) return SpiderVerseTheme;
   const normalized = templateId.toLowerCase().trim();
-  return FLAGSHIP_WORLDS[normalized] || SpiderVerseTheme;
+  return THEME_REGISTRY[normalized] || SpiderVerseTheme;
 }
