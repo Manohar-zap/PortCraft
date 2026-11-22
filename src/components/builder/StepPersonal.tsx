@@ -109,7 +109,7 @@ export default function StepPersonal({ data, updateData }: Props) {
               rows={4}
               className="bg-white/[0.05] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all resize-none"
             />
-            <p className="text-xs text-white/30">{personal.bio.length} characters</p>
+            <p className="text-xs text-white/30" suppressHydrationWarning>{personal.bio.length} characters</p>
           </div>
         </div>
       </div>
