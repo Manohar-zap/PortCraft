@@ -113,13 +113,21 @@ export default function StepTemplate({ data, updateData }: Props) {
         {filteredTemplates.map((t, i) => {
           const isSelected = data.templateId === t.id;
           return (
-            <motion.button
+            <motion.div
               key={t.id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(i * 0.03, 0.3) }}
               onClick={() => selectTemplate(t.id)}
-              className={`text-left rounded-2xl overflow-hidden border-2 transition-all focus:outline-none group relative ${
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  selectTemplate(t.id);
+                }
+              }}
+              className={`text-left rounded-2xl overflow-hidden border-2 transition-all cursor-pointer focus:outline-none group relative ${
                 isSelected
                   ? 'border-violet-500 shadow-xl shadow-violet-500/20'
                   : 'border-white/[0.08] hover:border-white/25 hover:bg-white/[0.01]'
@@ -198,7 +206,7 @@ export default function StepTemplate({ data, updateData }: Props) {
                   ))}
                 </div>
               </div>
-            </motion.button>
+            </motion.div>
           );
         })}
       </div>
