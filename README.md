@@ -33,8 +33,9 @@ PortCraft is an educational and student portfolio platform. Students can connect
 - **PortCraft AI Assistant** (`src/components/ai/ChatWidget.tsx`): Persistent conversational AI helper on builder and preview pages with an approval-based action system.
 - **Section Improvement** (`/api/ai/improve`): Rewrite specific sections with custom instructions.
 
-### 5. 🎨 30 Fictional Portfolio Themes with Verified Stats
-- All 30 fictional universe themes support student introductions, education, skills, projects, experience, verified coding statistics, and GitHub repositories.
+### 5. 🎨 30 Independent Fictional Portfolio Universes
+- Every single one of the 30 themes is an **independent visual universe** with its own layout architecture, SVG/CSS background environment, bespoke typography, and dedicated interactive component storytelling.
+- Universal data binding: changing themes changes the entire visual reality without altering the student's authentic data.
 - Zero layout breakage: dynamic `VerifiedProfileStats` component matches all themes.
 - Client-side static ZIP export packages full HTML/CSS/JS with coding statistics.
 
