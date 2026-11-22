@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronUp, GripVertical, Sparkles } from 'lucide-react';
 import { PortfolioData, Education, Skill, generateId } from '@/lib/types';
+import LinkedInImportModal from './LinkedInImportModal';
 
 interface Props {
   data: PortfolioData;
@@ -63,6 +64,21 @@ function EducationCard({
 
 export default function StepEducation({ data, updateData }: Props) {
   const { education, skills } = data;
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false);
+
+  const handleLinkedInApply = (extracted: { education: Education[]; skills: Skill[]; mode: 'append' | 'replace' }) => {
+    if (extracted.mode === 'replace') {
+      updateData({
+        education: extracted.education.length > 0 ? extracted.education : education,
+        skills: extracted.skills.length > 0 ? extracted.skills : skills,
+      });
+    } else {
+      updateData({
+        education: [...education, ...extracted.education],
+        skills: [...skills, ...extracted.skills],
+      });
+    }
+  };
 
   const addEducation = () => {
     updateData({
@@ -102,9 +118,37 @@ export default function StepEducation({ data, updateData }: Props) {
 
   return (
     <div>
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold font-poppins mb-2">Education & Skills</h1>
-        <p className="text-white/50 text-sm">Add your educational background and skill set.</p>
+        <p className="text-white/50 text-sm">Add your educational background and skill set manually, or import automatically from LinkedIn.</p>
+      </div>
+
+      {/* LinkedIn Import Banner */}
+      <div className="mb-8 p-4 bg-gradient-to-r from-[#0077b5]/20 via-[#0077b5]/10 to-transparent border border-[#0077b5]/30 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#0077b5]/30 border border-[#0077b5]/40 flex items-center justify-center font-bold text-white text-sm shrink-0">
+            in
+          </div>
+          <div>
+            <div className="text-sm font-bold text-white flex items-center gap-2">
+              Import from LinkedIn
+              <span className="text-[10px] bg-[#0077b5]/40 text-[#99d6ff] px-2 py-0.5 rounded-full font-semibold">
+                Fast & Auto-Categorized
+              </span>
+            </div>
+            <div className="text-xs text-white/50">
+              Extract your universities, degrees, and categorized skills with one click.
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowLinkedInModal(true)}
+          className="flex items-center gap-1.5 bg-[#0077b5] hover:bg-[#006097] text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-md hover:scale-105 shrink-0"
+        >
+          <Sparkles size={13} />
+          Import from LinkedIn
+        </button>
       </div>
 
       {/* Education */}
@@ -227,6 +271,13 @@ export default function StepEducation({ data, updateData }: Props) {
           color: white;
         }
       `}</style>
+
+      {/* LinkedIn Import Modal */}
+      <LinkedInImportModal
+        isOpen={showLinkedInModal}
+        onClose={() => setShowLinkedInModal(false)}
+        onApply={handleLinkedInApply}
+      />
     </div>
   );
 }

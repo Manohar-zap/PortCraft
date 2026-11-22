@@ -16,7 +16,8 @@ import { fetchCodeforcesProfile, validateCodeforcesHandle } from '@/lib/integrat
 import { createManualHackerRankProfile, validateHackerRankUsername } from '@/lib/integrations/hackerrank/connector';
 import { aggregatePlatformData } from '@/lib/services/profileAggregator';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
-import type { PlatformProfiles, ImportStatus } from '@/lib/types';
+import type { PlatformProfiles, ImportStatus, Education, Skill } from '@/lib/types';
+import LinkedInImportModal from '@/components/builder/LinkedInImportModal';
 
 interface PlatformState {
   username: string;
@@ -44,11 +45,33 @@ function saveImportSession(state: Record<string, PlatformState>) {
 export default function ConnectPage() {
   const [platformStates, setPlatformStates] = useState<Record<string, PlatformState>>({});
   const [importedProfiles, setImportedProfiles] = useState<PlatformProfiles>({});
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false);
 
   useEffect(() => {
     const session = loadImportSession();
     setPlatformStates(session);
   }, []);
+
+  const handleLinkedInApply = (extracted: { education: Education[]; skills: Skill[]; mode: 'append' | 'replace' }) => {
+    const portfolio = loadPortfolio();
+    const updatedEdu = extracted.mode === 'replace'
+      ? (extracted.education.length > 0 ? extracted.education : portfolio.education)
+      : [...portfolio.education, ...extracted.education];
+    const updatedSkills = extracted.mode === 'replace'
+      ? (extracted.skills.length > 0 ? extracted.skills : portfolio.skills)
+      : [...portfolio.skills, ...extracted.skills];
+    savePortfolio({
+      ...portfolio,
+      education: updatedEdu,
+      skills: updatedSkills,
+    });
+    updateState('linkedin', {
+      status: 'imported',
+      username: 'linkedin-profile',
+      data: { educationCount: extracted.education.length, skillsCount: extracted.skills.length },
+      error: undefined,
+    });
+  };
 
   const updateState = (id: string, patch: Partial<PlatformState>) => {
     setPlatformStates(prev => {
@@ -393,12 +416,22 @@ export default function ConnectPage() {
                         )}
 
                         {meta.id === 'linkedin' && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <span className="text-white/30 text-xs">or</span>
+                          <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setShowLinkedInModal(true)}
+                              className="flex items-center gap-1.5 text-xs text-[#0077b5] hover:text-[#33a3e6] font-semibold transition-colors"
+                            >
+                              <Sparkles size={12} />
+                              Import Education & Skills
+                            </button>
                             <label className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 cursor-pointer transition-colors">
                               <Upload size={12} />
-                              Upload Resume PDF
-                              <input type="file" accept=".pdf,.docx" className="hidden" />
+                              Upload PDF
+                              <input type="file" accept=".pdf,.docx,.txt" onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) setShowLinkedInModal(true);
+                              }} className="hidden" />
                             </label>
                           </div>
                         )}
@@ -485,6 +518,13 @@ export default function ConnectPage() {
           </div>
         </div>
       </div>
+
+      {/* LinkedIn Import Modal */}
+      <LinkedInImportModal
+        isOpen={showLinkedInModal}
+        onClose={() => setShowLinkedInModal(false)}
+        onApply={handleLinkedInApply}
+      />
     </div>
   );
 }
