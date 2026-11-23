@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getTemplate } from '@/lib/templates';
 import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import ThemeDispatcher from '@/components/templates/ThemeDispatcher';
+import DevicePreviewFrame from './DevicePreviewFrame';
 
 interface Props {
   templateId: string | null;
@@ -15,12 +16,6 @@ interface Props {
 }
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
-
-const VIEWPORT_WIDTHS: Record<Viewport, string> = {
-  desktop: '100%',
-  tablet: '768px',
-  mobile: '390px',
-};
 
 export default function SamplePreviewModal({ templateId, onClose, onLoadSample }: Props) {
   const [viewport, setViewport] = useState<Viewport>('desktop');
@@ -123,19 +118,9 @@ export default function SamplePreviewModal({ templateId, onClose, onLoadSample }
 
         {/* Scrollable Preview Canvas */}
         <div className="flex-1 overflow-auto p-2 sm:p-6 flex items-start justify-center bg-[#0a0a10]">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.2 }}
-            className="shadow-2xl rounded-xl overflow-hidden transition-all duration-300 bg-white"
-            style={{
-              width: VIEWPORT_WIDTHS[viewport],
-              maxWidth: '100%',
-              minHeight: '80vh',
-            }}
-          >
+          <DevicePreviewFrame viewport={viewport}>
             <ThemeDispatcher data={sampleData} />
-          </motion.div>
+          </DevicePreviewFrame>
         </div>
       </div>
     </AnimatePresence>

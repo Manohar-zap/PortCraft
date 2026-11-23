@@ -36,6 +36,10 @@ body {
   box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
 }
 
+.glow-green-sm {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
 .text-gradient {
   background: linear-gradient(135deg, #a78bfa, #7c3aed, #c084fc);
   -webkit-background-clip: text;

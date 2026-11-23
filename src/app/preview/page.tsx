@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Download, Eye, Palette, RefreshCw, Sparkles,
-  Monitor, Tablet, Smartphone, Settings2, X
+  Monitor, Tablet, Smartphone, Settings2, X, Brain, Lightbulb
 } from 'lucide-react';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { PortfolioData } from '@/lib/types';
@@ -15,7 +15,12 @@ import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import Customizer from '@/components/customizer/Customizer';
 
 import ThemeDispatcher from '@/components/templates/ThemeDispatcher';
+import DevicePreviewFrame from '@/components/preview/DevicePreviewFrame';
 import ChatWidget from '@/components/ai/ChatWidget';
+import IntelligentAssistantWidget from '@/components/intelligence/IntelligentAssistantWidget';
+import RecommendationsPanel from '@/components/intelligence/RecommendationsPanel';
+import { UserContext } from '@/lib/intelligence/types';
+import { initializeBehaviorTracking } from '@/lib/intelligence/behaviorTracker';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -23,22 +28,51 @@ function TemplateRenderer({ data }: { data: PortfolioData }) {
   return <ThemeDispatcher data={data} />;
 }
 
-const VIEWPORT_WIDTHS: Record<Viewport, string> = {
-  desktop: '100%',
-  tablet: '768px',
-  mobile: '390px',
-};
-
 export default function PreviewPage() {
   const [data, setData] = useState<PortfolioData | null>(null);
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [viewport, setViewport] = useState<Viewport>('desktop');
   const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [userContext, setUserContext] = useState<UserContext | null>(null);
+
+  // Initialize behavior tracking
+  useEffect(() => {
+    initializeBehaviorTracking();
+  }, []);
 
   useEffect(() => {
     setData(loadPortfolio());
   }, []);
+
+  // Build user context for intelligence (client-side only)
+  useEffect(() => {
+    const now = new Date();
+    const h = now.getHours();
+    const timeOfDay = h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
+    
+    setUserContext({
+      currentPage: '/preview',
+      sessionId: 'preview-session',
+      sessionStart: now.toISOString(),
+      sessionDuration: 0,
+      actionsInSession: [],
+      device: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
+      viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight } : { width: 1920, height: 1080 },
+      connection: 'fast',
+      prefersReducedMotion: typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+      prefersDarkMode: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+      timeOfDay,
+      dayOfWeek: now.getDay(),
+      isWeekend: [0, 6].includes(now.getDay()),
+      isNewUser: false,
+      isReturningUser: true,
+      daysSinceLastVisit: 0,
+      profileCompleteness: data ? calculateCompleteness(data) : 0,
+    });
+  }, [data]);
 
   const updateData = (partial: Partial<PortfolioData>) => {
     setData((prev) => {
@@ -48,6 +82,50 @@ export default function PreviewPage() {
       return updated;
     });
   };
+
+  const handleRecommendationAction = (action: { type: string; label: string; payload: Record<string, any> }) => {
+    switch (action.type) {
+      case 'navigate':
+        if (action.payload.page) {
+          window.location.href = action.payload.page;
+        }
+        break;
+      case 'apply-template':
+        if (action.payload.templateId && data) {
+          const template = TEMPLATES.find(t => t.id === action.payload.templateId);
+          if (template) {
+            updateData({
+              templateId: action.payload.templateId,
+              theme: { ...data.theme, ...template.defaultTheme },
+            });
+          }
+        }
+        break;
+      case 'open-modal':
+        // Could trigger modals
+        console.log('Open modal:', action.payload);
+        break;
+    }
+  };
+
+  function calculateCompleteness(portfolio: PortfolioData): number {
+    const { personal, education, experience, skills, projects, achievements } = portfolio;
+    let score = 0;
+
+    if (personal.firstName && personal.lastName && personal.email && personal.title) score += 20;
+    else if (personal.firstName || personal.lastName) score += 10;
+
+    if (education.length > 0) score += 15;
+    if (experience.length > 0) score += 20;
+    if (skills.length >= 8) score += 15;
+    else if (skills.length > 0) score += Math.round(15 * skills.length / 8);
+    if (projects.length >= 4) score += 20;
+    else if (projects.length > 0) score += Math.round(20 * projects.length / 4);
+    if (achievements.length >= 3) score += 10;
+    else if (achievements.length > 0) score += Math.round(10 * achievements.length / 3);
+
+    return Math.min(score, 100);
+  }
 
   const handleExport = async () => {
     if (!data) return;
@@ -139,6 +217,26 @@ export default function PreviewPage() {
             <span className="hidden sm:inline">Customize</span>
           </button>
           <button
+            onClick={() => setShowRecommendations(!showRecommendations)}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all ${
+              showRecommendations ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+            }`}
+            title="AI Recommendations"
+          >
+            <Lightbulb size={15} />
+            <span className="hidden sm:inline">Recommendations</span>
+          </button>
+          <button
+            onClick={() => setShowAssistant(!showAssistant)}
+            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all ${
+              showAssistant ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+            }`}
+            title="AI Assistant"
+          >
+            <Brain size={15} />
+            <span className="hidden sm:inline">Assistant</span>
+          </button>
+          <button
             onClick={handleExport}
             disabled={exporting}
             className={`flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-lg font-semibold transition-all ${
@@ -191,16 +289,9 @@ export default function PreviewPage() {
 
         {/* Preview area */}
         <div className="flex-1 overflow-auto bg-[#111118] p-4 md:p-8 flex items-start justify-center">
-          <div
-            className="transition-all duration-500 bg-white shadow-2xl rounded-lg overflow-hidden"
-            style={{
-              width: VIEWPORT_WIDTHS[viewport],
-              maxWidth: '100%',
-              minHeight: 600,
-            }}
-          >
+          <DevicePreviewFrame viewport={viewport}>
             <TemplateRenderer data={data} />
-          </div>
+          </DevicePreviewFrame>
         </div>
       </div>
 
@@ -218,7 +309,32 @@ export default function PreviewPage() {
         )}
       </AnimatePresence>
 
-      {/* Persistent AI Assistant */}
+      {/* Recommendations Panel */}
+      <AnimatePresence>
+        {showRecommendations && data && userContext && (
+          <RecommendationsPanel
+            portfolioData={data}
+            userContext={userContext}
+            position="sidebar"
+            onAction={handleRecommendationAction}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Intelligent Assistant */}
+      <AnimatePresence>
+        {showAssistant && data && userContext && (
+          <IntelligentAssistantWidget
+            portfolioData={data}
+            userContext={userContext}
+            position="bottom-right"
+            isOpen={showAssistant}
+            onClose={() => setShowAssistant(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Persistent AI Assistant (Legacy) */}
       <ChatWidget data={data} updateData={updateData} selectedTheme={data.templateId} />
     </div>
   );

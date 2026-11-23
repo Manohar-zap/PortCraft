@@ -6,7 +6,8 @@ import { useState, useEffect } from 'react';
 import {
   ArrowRight, Sparkles, Download, Palette, Eye,
   Globe, Shield, Zap, Code2, ChevronDown, Star,
-  CheckCircle, ExternalLink, Link2, Share2, Layers
+  CheckCircle, ExternalLink, Link2, Share2, Layers,
+  FileText, Brain
 } from 'lucide-react';
 import { TEMPLATES, THEME_CATEGORIES, ThemeCategory } from '@/lib/templates';
 import SamplePreviewModal from '@/components/preview/SamplePreviewModal';
@@ -52,6 +53,14 @@ function Nav() {
           <Link href="/connect" className="text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 transition-colors">
             <Sparkles size={13} />
             Connect Profiles
+          </Link>
+          <Link href="/resume-import" className="text-green-400 hover:text-green-300 font-semibold flex items-center gap-1 transition-colors">
+            <FileText size={13} />
+            Resume Import
+          </Link>
+          <Link href="/intelligence" className="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors">
+            <Brain size={13} />
+            Intelligence
           </Link>
           <a href="#features" className="hover:text-white transition-colors">Features</a>
           <a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a>
@@ -142,6 +151,14 @@ function Hero() {
           >
             <Sparkles size={19} />
             Connect & Auto-Build
+            <ArrowRight size={18} />
+          </Link>
+          <Link
+            href="/resume-import"
+            className="flex items-center gap-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold text-base md:text-lg px-7 py-4 rounded-xl transition-all hover:scale-105 active:scale-95 glow-green-sm shadow-xl"
+          >
+            <FileText size={19} />
+            Resume → Portfolio
             <ArrowRight size={18} />
           </Link>
           <Link
