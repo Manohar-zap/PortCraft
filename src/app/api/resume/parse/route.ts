@@ -176,10 +176,11 @@ export async function POST(request: NextRequest) {
       success: true,
       data: parseResult.data,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Resume parsing error:', error);
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred while parsing the resume';
     return NextResponse.json(
-      { success: false, error: error?.message || 'An unexpected error occurred while parsing the resume' },
+      { success: false, error: message },
       { status: 500 }
     );
   }

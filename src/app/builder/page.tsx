@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Sparkles, ArrowLeft, ArrowRight, Check, Brain, Lightbulb } from 'lucide-react';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { PortfolioData, generateId } from '@/lib/types';
-import { TEMPLATES } from '@/lib/templates';
+import { TEMPLATES, getTemplate } from '@/lib/templates';
 import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import ChatWidget from '@/components/ai/ChatWidget';
 import IntelligentAssistantWidget from '@/components/intelligence/IntelligentAssistantWidget';
 import RecommendationsPanel from '@/components/intelligence/RecommendationsPanel';
-import { UserContext } from '@/lib/intelligence/types';
-import { initializeBehaviorTracking } from '@/lib/intelligence/behaviorTracker';
+import { initializeBehaviorTracking, getOrBuildUserContext } from '@/lib/intelligence';
 
 // Step components
 import StepPersonal from '@/components/builder/StepPersonal';
@@ -58,9 +57,11 @@ function BuilderContent() {
 
   const [showAssistant, setShowAssistant] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Initialize behavior tracking
+  // Initialize behavior tracking and mount flag
   useEffect(() => {
+    setMounted(true);
     initializeBehaviorTracking();
   }, []);
 
@@ -69,29 +70,13 @@ function BuilderContent() {
     savePortfolio(data);
   }, [data]);
 
-  // Build user context for intelligence
-  const userContext = {
-    currentPage: '/builder',
-    currentStep: STEPS[step]?.id,
-    portfolioData: data,
-    templateId: data.templateId,
-    sessionId: 'builder-session',
-    sessionStart: new Date().toISOString(),
-    sessionDuration: 0,
-    actionsInSession: [],
-    device: (typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : typeof window !== 'undefined' && window.innerWidth < 1024 ? 'tablet' : 'desktop') as 'mobile' | 'tablet' | 'desktop',
-    viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight } : { width: 1920, height: 1080 },
-    connection: 'fast' as 'fast' | 'slow' | 'offline',
-    prefersReducedMotion: typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    prefersDarkMode: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
-    timeOfDay: (() => { const h = new Date().getHours(); if (h < 12) return 'morning'; if (h < 17) return 'afternoon'; if (h < 22) return 'evening'; return 'night'; })() as 'morning' | 'afternoon' | 'evening' | 'night',
-    dayOfWeek: new Date().getDay(),
-    isWeekend: [0, 6].includes(new Date().getDay()),
-    isNewUser: false,
-    isReturningUser: true,
-    daysSinceLastVisit: 0,
-    profileCompleteness: calculateCompleteness(data),
-  };
+  // Derived user context for intelligence (client-side only)
+  const userContext = useMemo(() => {
+    if (!mounted) return null;
+    return getOrBuildUserContext('/builder', data, {
+      currentStep: STEPS[step]?.id,
+    });
+  }, [mounted, data, step]);
 
   const updateData = (partial: Partial<PortfolioData>) => {
     setData((prev) => ({ ...prev, ...partial }));
@@ -117,26 +102,7 @@ function BuilderContent() {
     if (step > 0) setStep((s) => s - 1);
   };
 
-function calculateCompleteness(portfolio: PortfolioData): number {
-  const { personal, education, experience, skills, projects, achievements } = portfolio;
-  let score = 0;
-
-  if (personal.firstName && personal.lastName && personal.email && personal.title) score += 20;
-  else if (personal.firstName || personal.lastName) score += 10;
-
-  if (education.length > 0) score += 15;
-  if (experience.length > 0) score += 20;
-  if (skills.length >= 8) score += 15;
-  else if (skills.length > 0) score += Math.round(15 * skills.length / 8);
-  if (projects.length >= 4) score += 20;
-  else if (projects.length > 0) score += Math.round(20 * projects.length / 4);
-  if (achievements.length >= 3) score += 10;
-  else if (achievements.length > 0) score += Math.round(10 * achievements.length / 3);
-
-  return Math.min(score, 100);
-}
-
-return (
+  return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Top bar */}
       <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
@@ -295,25 +261,92 @@ return (
       <ChatWidget data={data} updateData={updateData} selectedTheme={data.templateId} />
 
       {/* Intelligence Assistant Widget */}
-      <IntelligentAssistantWidget
-        portfolioData={data}
-        userContext={userContext}
-        position="bottom-right"
-        isOpen={showAssistant}
-        onClose={() => setShowAssistant(false)}
-      />
+      {userContext && (
+        <IntelligentAssistantWidget
+          portfolioData={data}
+          userContext={userContext}
+          position="bottom-right"
+          isOpen={showAssistant}
+          onClose={() => setShowAssistant(false)}
+        />
+      )}
 
       {/* Recommendations Panel */}
-      <RecommendationsPanel
-        portfolioData={data}
-        userContext={userContext}
-        position="sidebar"
-        onAction={(action) => {
-          if (action.type === 'navigate' && action.payload.page) {
-            window.location.href = action.payload.page;
-          }
-        }}
-      />
+      {showRecommendations && userContext && (
+        <RecommendationsPanel
+          portfolioData={data}
+          userContext={userContext}
+          position="modal"
+          onAction={(action) => {
+            if (action.type === 'close') {
+              setShowRecommendations(false);
+            } else if (action.type === 'apply-template' && action.payload.templateId) {
+              const targetTpl = getTemplate(action.payload.templateId);
+              updateData({
+                templateId: targetTpl.id,
+                theme: { ...data.theme, ...targetTpl.defaultTheme },
+              });
+              setShowRecommendations(false);
+            } else if (action.type === 'add-skill') {
+              const skillObj = action.payload.skill || {
+                name: action.payload.skillName || 'New Skill',
+                level: 3,
+                category: action.payload.skillCategory || 'Technical',
+              };
+              const exists = data.skills?.some(s => s.name.toLowerCase() === skillObj.name.toLowerCase());
+              if (!exists) {
+                updateData({
+                  skills: [...(data.skills || []), { id: generateId(), name: skillObj.name, level: skillObj.level || 3, category: skillObj.category || 'Technical' }],
+                });
+              }
+              setStep(1); // Jump to Education & Skills step
+              setShowRecommendations(false);
+            } else if (action.type === 'create-project') {
+              const newProj = {
+                id: generateId(),
+                title: action.payload.projectTitle || action.payload.project?.title || 'New Project',
+                description: action.payload.projectIdea || action.payload.project?.description || '',
+                techStack: action.payload.techStack || action.payload.project?.techStack || [],
+                liveUrl: '',
+                githubUrl: '',
+                imageUrl: '',
+                featured: false,
+              };
+              updateData({
+                projects: [...(data.projects || []), newProj],
+              });
+              setStep(3); // Jump to Projects step
+              setShowRecommendations(false);
+            } else if (action.type === 'open-resource') {
+              if (action.payload.url) {
+                window.open(action.payload.url, '_blank');
+              }
+            } else if (action.type === 'navigate') {
+              if (action.payload.step) {
+                const stepMap: Record<string, number> = { personal: 0, education: 1, skills: 1, experience: 2, projects: 3, template: 4 };
+                if (stepMap[action.payload.step] !== undefined) {
+                  setStep(stepMap[action.payload.step]);
+                  setShowRecommendations(false);
+                  return;
+                }
+              }
+              if (action.payload.page && action.payload.page !== '/builder') {
+                window.location.href = action.payload.page;
+              }
+            } else if (action.type === 'complete-section') {
+              const stepMap: Record<string, number> = { personal: 0, education: 1, skills: 1, experience: 2, projects: 3, template: 4 };
+              if (action.payload.section && stepMap[action.payload.section] !== undefined) {
+                setStep(stepMap[action.payload.section]);
+                setShowRecommendations(false);
+              }
+            } else {
+              // Graceful fallback for any other action
+              console.log('Action handled:', action);
+              setShowRecommendations(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

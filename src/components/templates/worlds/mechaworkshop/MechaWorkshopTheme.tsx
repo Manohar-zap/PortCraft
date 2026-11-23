@@ -260,7 +260,7 @@ export default function MechaWorkshopTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-2 border-neutral-800 bg-[#0C101A] p-4 text-center text-xs text-neutral-500">
-          TITAN DEFENSE HANGAR // COMBAT READY • {fullName.toUpperCase()}
+          TITAN DEFENSE HANGAR \/ COMBAT READY \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

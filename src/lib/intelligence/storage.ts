@@ -50,7 +50,11 @@ function getStorage<T>(key: string, defaultValue: T): T {
 function setStorage<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    if (value === null || value === undefined) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(value));
+    }
   } catch (err) {
     console.error(`Failed to save ${key}:`, err);
   }
@@ -80,9 +84,10 @@ export function getUserProfile(): UserProfile {
   
   const profile = getStorage<UserProfile | null>(STORAGE_KEYS.USER_PROFILE, null);
   if (!profile) {
+    const anonId = getOrCreateAnonymousId();
     const newProfile: UserProfile = {
       ...INITIAL_USER_PROFILE,
-      id: generateId(),
+      id: anonId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -147,11 +152,57 @@ export function dismissRecommendation(id: string): void {
 
 export function addRecommendationFeedback(id: string, feedback: UserFeedback): void {
   updateRecommendation(id, { feedback });
+  saveFeedback(feedback);
+
+  // If user rated this recommendation helpful, learn and boost preferences
+  if (feedback.rating === 'helpful') {
+    const recs = getRecommendations();
+    const rec = recs.find(r => r.id === id);
+    if (rec) {
+      updateUserProfile(p => {
+        const interests = { ...p.interests };
+        if (rec.type === 'theme' && rec.action?.payload?.templateId) {
+          const tId = rec.action.payload.templateId;
+          const preferred = Array.from(new Set([...p.preferredThemes, tId]));
+          return { ...p, preferredThemes: preferred };
+        }
+        if (rec.type === 'skill' && rec.action?.payload?.skill) {
+          const skillObj = rec.action.payload.skill;
+          const skillName = typeof skillObj === 'string'
+            ? skillObj
+            : typeof skillObj === 'object' && skillObj && 'name' in skillObj
+            ? ((skillObj as { name?: string }).name || '')
+            : '';
+          if (skillName) {
+            const existingTech = interests.technologies.find(t => t.technology.toLowerCase() === skillName.toLowerCase());
+            if (existingTech) {
+              existingTech.score = Math.min(100, existingTech.score + 15);
+              existingTech.trend = 'increasing';
+              existingTech.lastInteraction = new Date().toISOString();
+            } else {
+              interests.technologies.push({
+                technology: skillName,
+                score: 75,
+                confidence: 0.8,
+                trend: 'increasing',
+                lastInteraction: new Date().toISOString(),
+              });
+            }
+          }
+        }
+        return { ...p, interests };
+      });
+    }
+  }
 }
 
 // ─── Analytics Events ──────────────────────────────────────────────────────
 
-export function trackEvent(event: Omit<AnalyticsEvent, 'id' | 'timestamp'>): AnalyticsEvent {
+export function trackEvent(event: Omit<AnalyticsEvent, 'id' | 'timestamp'>): AnalyticsEvent | null {
+  const consent = getConsent();
+  if (!consent.analytics) {
+    return null;
+  }
   const fullEvent: AnalyticsEvent = {
     ...event,
     id: generateId(),
@@ -204,6 +255,16 @@ export function getConsent(): ConsentSettings {
   return getStorage<ConsentSettings>(STORAGE_KEYS.CONSENT, DEFAULT_CONSENT);
 }
 
+export function canTrackAnalytics(): boolean {
+  if (typeof window === 'undefined') return false;
+  return getConsent().analytics === true;
+}
+
+export function canTrackPersonalization(): boolean {
+  if (typeof window === 'undefined') return false;
+  return getConsent().personalization === true;
+}
+
 export function saveConsent(consent: Partial<ConsentSettings>): ConsentSettings {
   const current = getConsent();
   const updated: ConsentSettings = {
@@ -217,6 +278,16 @@ export function saveConsent(consent: Partial<ConsentSettings>): ConsentSettings 
   // Also update user profile
   updateUserProfile(p => ({ ...p, consent: updated }));
   
+  // If analytics consent is revoked, end active session immediately
+  if (updated.analytics === false) {
+    endSession();
+  }
+
+  // Notify runtime listeners
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('portcraft_consent_changed', { detail: updated }));
+  }
+
   return updated;
 }
 
@@ -323,7 +394,10 @@ export function getSession(): SessionData | null {
   return getStorage<SessionData | null>(STORAGE_KEYS.SESSION, null);
 }
 
-export function startSession(userId: string): SessionData {
+export function startSession(userId: string): SessionData | null {
+  const consent = getConsent();
+  if (!consent.analytics) return null;
+
   const session: SessionData = {
     id: generateId(),
     userId,
@@ -337,11 +411,26 @@ export function startSession(userId: string): SessionData {
 }
 
 export function updateSession(updates: Partial<SessionData>): SessionData | null {
+  const consent = getConsent();
+  if (!consent.analytics) return null;
+
   const session = getSession();
   if (!session) return null;
   const updated = { ...session, ...updates, lastActivity: new Date().toISOString() };
   setStorage(STORAGE_KEYS.SESSION, updated);
   return updated;
+}
+
+export function getOrCreateActiveSession(userId: string): SessionData | null {
+  const consent = getConsent();
+  if (!consent.analytics) return null;
+
+  const existing = getSession();
+  const THIRTY_MINUTES = 30 * 60 * 1000;
+  if (existing && Date.now() - new Date(existing.lastActivity).getTime() < THIRTY_MINUTES) {
+    return updateSession({ lastActivity: new Date().toISOString() }) || existing;
+  }
+  return startSession(userId);
 }
 
 export function endSession(): void {
@@ -352,11 +441,11 @@ export function endSession(): void {
 
 export function exportAllData(): DataExport {
   const profile = getUserProfile();
-  const events = getEvents({ userId: profile.id });
+  const anonId = getOrCreateAnonymousId();
+  const events = getEvents().filter(e => e.userId === profile.id || e.userId === anonId);
   const recommendations = getRecommendations();
   const feedback = getFeedback();
   const assignments = getStorage<Record<string, string>>(STORAGE_KEYS.AB_ASSIGNMENTS, {});
-  const deletionRequests = getStorage<DataDeletionRequest[]>(STORAGE_KEYS.DELETION_REQUESTS, []);
   
   return {
     userProfile: profile,
@@ -392,7 +481,8 @@ export function processDataDeletion(requestId: string): boolean {
   if (!request) return false;
   
   const profile = getUserProfile();
-  if (request.userId !== profile.id) return false;
+  const anonId = getOrCreateAnonymousId();
+  if (request.userId !== profile.id && request.userId !== anonId) return false;
   
   request.status = 'processing';
   setStorage(STORAGE_KEYS.DELETION_REQUESTS, requests);
@@ -407,10 +497,14 @@ export function processDataDeletion(requestId: string): boolean {
         localStorage.removeItem(STORAGE_KEYS.CONSENT);
         localStorage.removeItem(STORAGE_KEYS.AB_ASSIGNMENTS);
         localStorage.removeItem(STORAGE_KEYS.UX_METRICS);
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
+        localStorage.removeItem(STORAGE_KEYS.HEURISTIC_EVALS);
+        localStorage.removeItem('portcraft_has_visited');
         break;
       case 'analytics':
         localStorage.removeItem(STORAGE_KEYS.EVENTS);
         localStorage.removeItem(STORAGE_KEYS.UX_METRICS);
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
         break;
       case 'recommendations':
         localStorage.removeItem(STORAGE_KEYS.RECOMMENDATIONS);
@@ -420,6 +514,7 @@ export function processDataDeletion(requestId: string): boolean {
         break;
       case 'events':
         localStorage.removeItem(STORAGE_KEYS.EVENTS);
+        localStorage.removeItem(STORAGE_KEYS.SESSION);
         break;
     }
     

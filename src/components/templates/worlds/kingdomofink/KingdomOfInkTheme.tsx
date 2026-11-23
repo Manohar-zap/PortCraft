@@ -212,7 +212,7 @@ export default function KingdomOfInkTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-t-2 border-[#1E1E24] pt-6 text-center font-sans text-xs text-neutral-600 uppercase tracking-widest">
-          KINGDOM OF INK // AUTHENTIC HANLIN CODEX • {fullName.toUpperCase()}
+          KINGDOM OF INK \/ AUTHENTIC HANLIN CODEX \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

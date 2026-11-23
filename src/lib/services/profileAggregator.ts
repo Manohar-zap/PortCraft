@@ -55,7 +55,7 @@ export function aggregatePlatformData(
       result.skills = langs.map((lang, i) => ({
         id: `lang-${i}`,
         name: lang,
-        level: 3,
+        level: 0, // Unknown - remains unrated (0) until user sets it
         category: 'Programming Languages',
       }));
     }

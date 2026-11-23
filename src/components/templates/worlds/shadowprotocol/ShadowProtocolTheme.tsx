@@ -215,7 +215,7 @@ export default function ShadowProtocolTheme({ data }: Props) {
               {experience.map((exp) => (
                 <div key={exp.id} className="border-l-2 border-[#00FF66] pl-4">
                   <div className="text-base font-bold text-white uppercase font-mono">{exp.position}</div>
-                  <div className="text-xs text-neutral-400 font-mono">{exp.company} // {exp.startDate} - {exp.current ? 'ACTIVE' : exp.endDate}</div>
+                  <div className="text-xs text-neutral-400 font-mono">{exp.company} \/ {exp.startDate} - {exp.current ? 'ACTIVE' : exp.endDate}</div>
                 </div>
               ))}
             </div>
@@ -238,7 +238,7 @@ export default function ShadowProtocolTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border border-[#00FF66]/30 bg-[#0A0E13] p-4 text-center text-xs text-neutral-500">
-          SHADOW PROTOCOL // TOP SECRET SPEC-OPS // TERMINATE TRANSMISSION • {fullName.toUpperCase()}
+          SHADOW PROTOCOL \/ TOP SECRET SPEC-OPS \/ TERMINATE TRANSMISSION \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

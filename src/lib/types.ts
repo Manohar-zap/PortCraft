@@ -173,8 +173,13 @@ export const DEFAULT_PORTFOLIO: PortfolioData = {
   sourceRecords: [],
 };
 
+// Generate a unique ID - uses crypto.randomUUID() if available, otherwise falls back to timestamp + random
 export function generateId(): string {
-  return Math.random().toString(36).substring(2, 11);
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }
 
 // ─── Platform Integration Types ───────────────────────────────

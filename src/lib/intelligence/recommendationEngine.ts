@@ -33,23 +33,60 @@ export class RecommendationEngine {
     this.context = context;
   }
 
-  // ─── Main Entry Point ────────────────────────────────────────────────────
+  // ─── Main Entry Point ────────────────────────────────────────────────
 
   async generateAllRecommendations(): Promise<Recommendation[]> {
     const recommendations: Recommendation[] = [];
 
+    // Get existing recommendations to check for dismissed/feedback
+    const existingRecs = getRecommendations();
+    const dismissedIds = new Set(existingRecs.filter(r => r.dismissedAt).map(r => r.id));
+    const negativeFeedbackIds = new Set(
+      existingRecs
+        .filter(r => r.feedback && (
+          r.feedback.rating === 'not-helpful' || 
+          r.feedback.rating === 'irrelevant' ||
+          r.feedback.rating === 'already-done'
+        ))
+        .map(r => r.id)
+    );
+
+    // Track helpful categories and skills for feedback boosting
+    const helpfulThemeIds = new Set<string>();
+    const helpfulSkillCategories = new Set<string>();
+    existingRecs.forEach(r => {
+      if (r.feedback?.rating === 'helpful') {
+        if (r.type === 'theme' && r.action?.payload?.templateId) {
+          helpfulThemeIds.add(r.action.payload.templateId);
+        }
+        if (r.type === 'skill' && r.metadata?.factors) {
+          helpfulSkillCategories.add(r.title);
+        }
+      }
+    });
+
     // Generate each type of recommendation
-    recommendations.push(...this.recommendThemes());
-    recommendations.push(...this.recommendSkills());
-    recommendations.push(...this.recommendProjects());
-    recommendations.push(...this.recommendLearningResources());
-    recommendations.push(...this.recommendCareerPaths());
-    recommendations.push(...this.recommendPortfolioImprovements());
-    recommendations.push(...this.recommendTemplateCustomizations());
-    recommendations.push(...this.recommendSectionCompletion());
+    const allRecs: Recommendation[] = [];
+    allRecs.push(...this.recommendThemes(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendSkills(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendProjects(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendLearningResources(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendCareerPaths(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendPortfolioImprovements(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendTemplateCustomizations(dismissedIds, negativeFeedbackIds));
+    allRecs.push(...this.recommendSectionCompletion(dismissedIds, negativeFeedbackIds));
+
+    // Filter out dismissed and negatively-received recommendations, and deduplicate by ID
+    const seenRecIds = new Set<string>();
+    const filtered = allRecs.filter(r => {
+      if (dismissedIds.has(r.id) || negativeFeedbackIds.has(r.id)) return false;
+      if (seenRecIds.has(r.id)) return false;
+      seenRecIds.add(r.id);
+      return true;
+    });
 
     // Sort by priority and confidence
-    recommendations.sort((a, b) => {
+    filtered.sort((a, b) => {
       const priorityOrder = { high: 3, medium: 2, low: 1 };
       const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority];
       if (priorityDiff !== 0) return priorityDiff;
@@ -57,7 +94,7 @@ export class RecommendationEngine {
     });
 
     // Limit total recommendations
-    const limited = recommendations.slice(0, 15);
+    const limited = filtered.slice(0, 15);
 
     // Save to storage
     for (const rec of limited) {
@@ -69,7 +106,7 @@ export class RecommendationEngine {
 
   // ─── Theme Recommendations ───────────────────────────────────────────────
 
-  private recommendThemes(): Recommendation[] {
+  private recommendThemes(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { preferredThemes, behaviorProfile, interests } = this.userProfile;
     const currentTemplate = this.portfolioData?.templateId;
@@ -77,10 +114,10 @@ export class RecommendationEngine {
     // Analyze theme preferences based on interests
     const themeScores = this.scoreThemesByInterests();
 
-    // Boost themes user has explicitly liked
+    // Boost themes user has explicitly liked (resolved via getTemplate)
     for (const themeId of preferredThemes) {
-      const theme = TEMPLATES.find(t => t.id === themeId);
-      if (theme) themeScores[themeId] = (themeScores[themeId] || 0) + 20;
+      const theme = getTemplate(themeId);
+      if (theme) themeScores[theme.id] = (themeScores[theme.id] || 0) + 20;
     }
 
     // Consider visual complexity preference
@@ -107,27 +144,30 @@ export class RecommendationEngine {
       .slice(0, 5);
 
     for (const [themeId, score] of sortedThemes) {
-      const theme = TEMPLATES.find(t => t.id === themeId);
-      if (!theme || themeId === currentTemplate) continue;
+      const theme = getTemplate(themeId);
+      if (!theme || theme.id === currentTemplate) continue;
+      const recId = `rec-theme-${theme.id}`;
+      if (dismissedIds.has(recId) || dismissedIds.has(theme.id) || negativeFeedbackIds.has(recId) || negativeFeedbackIds.has(theme.id)) continue;
 
       const confidence = Math.min(score / 100, 0.95);
       if (confidence < 0.3) continue;
 
       recs.push(this.createRecommendation({
+        id: recId,
         type: 'theme',
         title: `Try "${theme.name}" Theme`,
         description: `${theme.description} This theme matches your ${this.getThemeMatchReason(theme, interests)}.`,
-        reasoning: `Based on your interests in ${this.getTopInterests(interests).join(', ')} and preference for ${behaviorProfile.visualComplexityPreference} complexity themes.`,
+        reasoning: `Based on your interests in ${this.getTopInterests(interests).join(', ') || 'software development'} and preference for ${behaviorProfile.visualComplexityPreference} complexity themes.`,
         confidence,
         priority: confidence > 0.7 ? 'high' : 'medium',
         action: {
           type: 'apply-template',
-          payload: { templateId: themeId },
+          payload: { templateId: theme.id },
           label: 'Preview Theme',
         },
         metadata: {
           source: 'content-based',
-          factors: this.getThemeFactors(theme, themeScores[themeId], interests),
+          factors: this.getThemeFactors(theme, themeScores[theme.id] || score, interests),
           context: this.context,
         },
       }));
@@ -140,26 +180,29 @@ export class RecommendationEngine {
     const scores: Record<string, number> = {};
     const { domains, technologies, roles } = this.userProfile.interests;
 
-    // Theme to interest mapping
+    // Theme to interest mapping using canonical template IDs (plus legacy aliases)
     const themeInterestMap: Record<string, { domains: string[]; technologies: string[]; roles: string[] }> = {
       'spider-verse': { domains: ['web-dev', 'creative'], technologies: ['react', 'animation'], roles: ['frontend-dev', 'creative-dev'] },
       'gotham-noir': { domains: ['web-dev', 'security'], technologies: ['typescript', 'testing'], roles: ['fullstack', 'security-engineer'] },
-      'cyberpunk': { domains: ['web-dev', 'devops', 'ai-ml'], technologies: ['react', 'node.js', 'docker'], roles: ['fullstack', 'devops-engineer'] },
-      'terminal': { domains: ['devops', 'backend'], technologies: ['bash', 'linux', 'cli'], roles: ['devops-engineer', 'backend-dev', 'cli-developer'] },
-      'bento': { domains: ['web-dev', 'design'], technologies: ['react', 'css', 'tailwind'], roles: ['frontend-dev', 'ui-developer'] },
-      'minimalist': { domains: ['web-dev', 'design'], technologies: ['react', 'css'], roles: ['frontend-dev', 'ui-developer'] },
-      'editorial': { domains: ['content', 'design'], technologies: ['typography', 'css'], roles: ['content-developer', 'designer'] },
-      'creative-studio': { domains: ['creative', 'design', 'web-dev'], technologies: ['react', 'animation', 'canvas'], roles: ['creative-dev', 'frontend-dev'] },
-      'data-scientist': { domains: ['data-science', 'ai-ml'], technologies: ['python', 'pandas', 'tensorflow'], roles: ['data-scientist', 'ml-engineer'] },
       'arc-reactor': { domains: ['web-dev', 'devops', 'embedded'], technologies: ['typescript', 'rust', 'electronics'], roles: ['fullstack', 'embedded-engineer'] },
       'mystic-dimension': { domains: ['creative', 'web-dev'], technologies: ['react', 'canvas', 'animation'], roles: ['creative-dev', 'frontend-dev'] },
+      'night-city': { domains: ['web-dev', 'devops', 'ai-ml'], technologies: ['react', 'node.js', 'docker'], roles: ['fullstack', 'devops-engineer'] },
+      'cyberpunk': { domains: ['web-dev', 'devops', 'ai-ml'], technologies: ['react', 'node.js', 'docker'], roles: ['fullstack', 'devops-engineer'] },
+      'digital-grid': { domains: ['web-dev', 'design'], technologies: ['react', 'css', 'tailwind'], roles: ['frontend-dev', 'ui-developer'] },
+      'bento': { domains: ['web-dev', 'design'], technologies: ['react', 'css', 'tailwind'], roles: ['frontend-dev', 'ui-developer'] },
+      'code-reality': { domains: ['devops', 'backend'], technologies: ['bash', 'linux', 'cli'], roles: ['devops-engineer', 'backend-dev', 'cli-developer'] },
+      'terminal': { domains: ['devops', 'backend'], technologies: ['bash', 'linux', 'cli'], roles: ['devops-engineer', 'backend-dev', 'cli-developer'] },
       'desert-dynasty': { domains: ['web-dev', 'content'], technologies: ['react', 'markdown'], roles: ['fullstack', 'content-developer'] },
       'brickverse': { domains: ['creative', 'gaming'], technologies: ['unity', 'godot'], roles: ['game-dev', 'creative-dev'] },
+      'blocklands': { domains: ['gaming', 'web-dev'], technologies: ['pixel-art', 'typescript', 'game-dev'], roles: ['game-dev', 'frontend-dev'] },
+      'retro-rpg': { domains: ['gaming', 'web-dev'], technologies: ['pixel-art', 'typescript', 'game-dev'], roles: ['game-dev', 'frontend-dev'] },
       'comic-pop': { domains: ['creative', 'design'], technologies: ['illustration', 'animation'], roles: ['designer', 'creative-dev'] },
       'anime-dimension': { domains: ['creative', 'animation'], technologies: ['after-effects', 'lottie'], roles: ['motion-designer', 'animator'] },
       'vice-city': { domains: ['gaming', 'creative'], technologies: ['unity', 'pixel-art'], roles: ['game-dev', 'creative-dev'] },
       'assassin': { domains: ['security', 'history'], technologies: ['cryptography', 'rust'], roles: ['security-engineer', 'backend-dev'] },
       'galactic-frontier': { domains: ['ai-ml', 'space-tech'], technologies: ['python', 'tensorflow', 'ros'], roles: ['ml-engineer', 'robotics-engineer'] },
+      'neon-nomad': { domains: ['creative', 'design', 'web-dev'], technologies: ['react', 'animation', 'canvas'], roles: ['creative-dev', 'frontend-dev'] },
+      'creative-studio': { domains: ['creative', 'design', 'web-dev'], technologies: ['react', 'animation', 'canvas'], roles: ['creative-dev', 'frontend-dev'] },
       'orbital-academy': { domains: ['education', 'ai-ml'], technologies: ['python', 'jupyter'], roles: ['educator', 'researcher'] },
       'frostbyte': { domains: ['web-dev', 'design'], technologies: ['react', 'css', 'glassmorphism'], roles: ['frontend-dev', 'ui-developer'] },
       'solar-forge': { domains: ['hardware', 'iot', 'web-dev'], technologies: ['arduino', 'raspberry-pi', 'mqtt'], roles: ['iot-engineer', 'hardware-engineer'] },
@@ -167,36 +210,63 @@ export class RecommendationEngine {
       'timekeeper': { domains: ['productivity', 'web-dev'], technologies: ['react', 'scheduling'], roles: ['product-manager', 'fullstack'] },
       'dreamscape': { domains: ['creative', 'design'], technologies: ['figma', 'illustration'], roles: ['designer', 'creative-dev'] },
       'wasteland-survivor': { domains: ['devops', 'security'], technologies: ['linux', 'bash', 'infrastructure'], roles: ['devops-engineer', 'sre'] },
+      'celestial-library': { domains: ['content', 'design'], technologies: ['typography', 'css'], roles: ['content-developer', 'designer'] },
+      'editorial': { domains: ['content', 'design'], technologies: ['typography', 'css'], roles: ['content-developer', 'designer'] },
       'mecha-workshop': { domains: ['robotics', 'embedded', 'hardware'], technologies: ['ros', 'c++', 'python'], roles: ['robotics-engineer', 'embedded-engineer'] },
       'kingdom-of-ink': { domains: ['content', 'design', 'history'], technologies: ['markdown', 'typography'], roles: ['technical-writer', 'content-developer'] },
-      'quantum-lab': { domains: ['quantum', 'research', 'ai-ml'], technologies: ['qiskit', 'cirq', 'python'], roles: ['quantum-researcher', 'ml-engineer'] },
+      'quantum-lab': { domains: ['data-science', 'ai-ml', 'quantum'], technologies: ['python', 'pandas', 'tensorflow'], roles: ['data-scientist', 'ml-engineer'] },
+      'data-scientist': { domains: ['data-science', 'ai-ml'], technologies: ['python', 'pandas', 'tensorflow'], roles: ['data-scientist', 'ml-engineer'] },
       'cloud-kingdom': { domains: ['cloud', 'devops', 'web-dev'], technologies: ['aws', 'azure', 'kubernetes'], roles: ['cloud-engineer', 'devops-engineer'] },
       'shadow-protocol': { domains: ['security', 'devops'], technologies: ['rust', 'go', 'cryptography'], roles: ['security-engineer', 'backend-dev'] },
       'infinite-museum': { domains: ['design', 'art', 'web-dev'], technologies: ['css', 'typography', 'layout'], roles: ['designer', 'frontend-dev'] },
+      'minimalist': { domains: ['web-dev', 'design'], technologies: ['react', 'css'], roles: ['frontend-dev', 'ui-developer'] },
     };
+
+    // Extract technologies and roles directly from portfolioData so recommendations
+    // work accurately even when analytics/behavioral tracking is disabled by default
+    const portfolioSkills = (this.portfolioData?.skills || []).map(s => s.name.toLowerCase());
+    const portfolioTechs = new Set<string>(portfolioSkills);
+    for (const p of this.portfolioData?.projects || []) {
+      for (const t of p.techStack || []) {
+        portfolioTechs.add(t.toLowerCase());
+      }
+    }
+    const roleString = (this.portfolioData?.personal?.title || '').toLowerCase();
 
     for (const theme of TEMPLATES) {
       const mapping = themeInterestMap[theme.id] || { domains: [], technologies: [], roles: [] };
-      let score = 0;
+      let score = 35; // Baseline score to ensure recommendations work on any valid profile
 
-      // Domain matching
+      // Domain matching from profile interests
       for (const domain of domains) {
         if (mapping.domains.includes(domain.domain)) {
           score += domain.score * 0.3;
         }
       }
 
-      // Technology matching
+      // Technology matching from profile interests
       for (const tech of technologies) {
         if (mapping.technologies.includes(tech.technology.toLowerCase())) {
           score += tech.score * 0.4;
         }
       }
 
-      // Role matching
+      // Technology matching directly from portfolio skills & projects
+      for (const tech of mapping.technologies) {
+        if (portfolioTechs.has(tech)) {
+          score += 25;
+        }
+      }
+
+      // Role matching from profile interests & portfolio title
       for (const role of roles) {
         if (mapping.roles.includes(role.role)) {
           score += role.score * 0.3;
+        }
+      }
+      for (const role of mapping.roles) {
+        if (roleString.includes(role.replace('-', ' ')) || roleString.includes(role.split('-')[0])) {
+          score += 20;
         }
       }
 
@@ -260,7 +330,7 @@ export class RecommendationEngine {
 
   // ─── Skill Recommendations ───────────────────────────────────────────────
 
-  private recommendSkills(): Recommendation[] {
+  private recommendSkills(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { skills } = this.portfolioData || { skills: [] };
     const { interests, skillLevel, skillFocus, careerGoals } = this.userProfile;
@@ -270,7 +340,9 @@ export class RecommendationEngine {
     const currentSkillNames = new Set(skills.map((s: any) => s.name.toLowerCase()));
 
     for (const target of targetSkills) {
+      const skillId = `skill-${target.name.toLowerCase()}`;
       if (currentSkillNames.has(target.name.toLowerCase())) continue;
+      if (dismissedIds.has(skillId) || negativeFeedbackIds.has(skillId)) continue;
 
       const confidence = this.calculateSkillConfidence(target, interests, careerGoals);
       if (confidence < 0.35) continue;
@@ -302,7 +374,9 @@ export class RecommendationEngine {
     // Recommend leveling up existing skills
     for (const skill of skills) {
       const focus = skillFocus.find(f => f.skill.toLowerCase() === skill.name.toLowerCase());
+      const skillId = `skill-${skill.name.toLowerCase()}`;
       if (focus && focus.targetLevel > skill.level) {
+        if (dismissedIds.has(skillId) || negativeFeedbackIds.has(skillId)) continue;
         recs.push(this.createRecommendation({
           type: 'skill',
           title: `Level Up "${skill.name}"`,
@@ -459,7 +533,7 @@ export class RecommendationEngine {
 
   // ─── Project Recommendations ─────────────────────────────────────────────
 
-  private recommendProjects(): Recommendation[] {
+  private recommendProjects(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { projects, skills } = this.portfolioData || { projects: [], skills: [] };
     const { interests, careerGoals } = this.userProfile;
@@ -467,11 +541,16 @@ export class RecommendationEngine {
     if (projects.length >= 6) return recs; // Already has good project count
 
     const skillNames = new Set<string>(skills.map((s: any) => s.name.toLowerCase()));
+    const currentProjectTitles = new Set((projects || []).map((p: any) => p.title.toLowerCase().trim()));
     const projectIdeas = this.generateProjectIdeas(skillNames, interests, careerGoals);
 
-    for (const idea of projectIdeas.slice(0, 3)) {
+    for (const idea of projectIdeas) {
+      if (currentProjectTitles.has(idea.title.toLowerCase().trim())) continue;
       const confidence = this.calculateProjectConfidence(idea, interests, careerGoals);
       if (confidence < 0.3) continue;
+
+      const projectId = `project-${idea.title.toLowerCase().replace(/\s+/g, '-')}`;
+      if (dismissedIds.has(projectId) || negativeFeedbackIds.has(projectId)) continue;
 
       recs.push(this.createRecommendation({
         type: 'project',
@@ -674,13 +753,16 @@ export class RecommendationEngine {
 
   // ─── Learning Resource Recommendations ──────────────────────────────────
 
-  private recommendLearningResources(): Recommendation[] {
+  private recommendLearningResources(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { skillFocus, interests, skillLevel } = this.userProfile;
     const { skills } = this.portfolioData || { skills: [] };
 
     // Resources for focus skills
     for (const focus of skillFocus.slice(0, 3)) {
+      const resourceId = `resource-${focus.skill.toLowerCase()}`;
+      if (dismissedIds.has(resourceId) || negativeFeedbackIds.has(resourceId)) continue;
+      
       const resources = this.getResourcesForSkill(focus.skill, focus.category, skillLevel.overall);
       
       for (const resource of resources.slice(0, 2)) {
@@ -716,6 +798,9 @@ export class RecommendationEngine {
       if (resources.length === 0) continue;
 
       const resource = resources[0];
+      const resourceId = `resource-${skill.name.toLowerCase()}`;
+      if (dismissedIds.has(resourceId) || negativeFeedbackIds.has(resourceId)) continue;
+      
       recs.push(this.createRecommendation({
         type: 'learning-resource',
         title: `Learn ${skill.name}: ${resource.title}`,
@@ -877,7 +962,7 @@ export class RecommendationEngine {
 
   // ─── Career Path Recommendations ─────────────────────────────────────────
 
-  private recommendCareerPaths(): Recommendation[] {
+  private recommendCareerPaths(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { careerGoals, interests, skillLevel } = this.userProfile;
     const { skills, projects, experience } = this.portfolioData || { skills: [], projects: [], experience: [] };
@@ -888,6 +973,9 @@ export class RecommendationEngine {
       const suggestedRoles = this.getSuggestedRoles(interests, skills, experience);
       
       for (const role of suggestedRoles.slice(0, 2)) {
+        const careerId = `career-${role.role}`;
+        if (dismissedIds.has(careerId) || negativeFeedbackIds.has(careerId)) continue;
+        
         recs.push(this.createRecommendation({
           type: 'career-path',
           title: `Consider ${role.title} Career Path`,
@@ -919,6 +1007,9 @@ export class RecommendationEngine {
       const nextSteps = this.getCareerNextSteps(goal, skills, projects, experience);
       
       for (const step of nextSteps.slice(0, 2)) {
+        const stepId = `career-step-${goal.targetRole}-${step.title.toLowerCase().replace(/\s+/g, '-')}`;
+        if (dismissedIds.has(stepId) || negativeFeedbackIds.has(stepId)) continue;
+        
         recs.push(this.createRecommendation({
           type: 'career-path',
           title: step.title,
@@ -1167,7 +1258,7 @@ export class RecommendationEngine {
 
   // ─── Portfolio Improvement Recommendations ───────────────────────────────
 
-  private recommendPortfolioImprovements(): Recommendation[] {
+  private recommendPortfolioImprovements(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const { personal, education, experience, skills, projects, achievements } = this.portfolioData || {
       personal: {},
@@ -1182,7 +1273,8 @@ export class RecommendationEngine {
     // Check completeness
     const completeness = this.calculateCompleteness(this.portfolioData);
     
-    if (completeness < 60) {
+    const completenessId = 'improvement-completeness';
+    if (completeness < 60 && !dismissedIds.has(completenessId) && !negativeFeedbackIds.has(completenessId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Complete Your Profile',
@@ -1206,7 +1298,8 @@ export class RecommendationEngine {
     }
 
     // Specific section recommendations
-    if (!personal.bio || personal.bio.length < 50) {
+    const bioId = 'improvement-bio';
+    if (!personal.bio || personal.bio.length < 50 && !dismissedIds.has(bioId) && !negativeFeedbackIds.has(bioId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Add a Compelling Bio',
@@ -1229,7 +1322,8 @@ export class RecommendationEngine {
       }));
     }
 
-    if (skills.length < 5) {
+    const skillsId = 'improvement-skills';
+    if (skills.length < 5 && !dismissedIds.has(skillsId) && !negativeFeedbackIds.has(skillsId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Add More Skills',
@@ -1252,7 +1346,8 @@ export class RecommendationEngine {
       }));
     }
 
-    if (projects.length < 3) {
+    const projectsId = 'improvement-projects';
+    if (projects.length < 3 && !dismissedIds.has(projectsId) && !negativeFeedbackIds.has(projectsId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Showcase More Projects',
@@ -1275,7 +1370,8 @@ export class RecommendationEngine {
       }));
     }
 
-    if (projects.length > 0 && projects.every((p: any) => !p.featured)) {
+    const featuredId = 'improvement-featured';
+    if (projects.length > 0 && projects.every((p: any) => !p.featured) && !dismissedIds.has(featuredId) && !negativeFeedbackIds.has(featuredId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Feature Your Best Project',
@@ -1298,7 +1394,8 @@ export class RecommendationEngine {
       }));
     }
 
-    if (experience.length > 0 && experience.some((e: any) => !e.highlights || e.highlights.length === 0)) {
+    const highlightsId = 'improvement-highlights';
+    if (experience.length > 0 && experience.some((e: any) => !e.highlights || e.highlights.length === 0) && !dismissedIds.has(highlightsId) && !negativeFeedbackIds.has(highlightsId)) {
       recs.push(this.createRecommendation({
         type: 'portfolio-improvement',
         title: 'Add Achievement Highlights',
@@ -1325,7 +1422,9 @@ export class RecommendationEngine {
     if (templateId) {
       const theme = getTemplate(templateId);
       const themeRecs = this.getThemeSpecificImprovements(theme, this.portfolioData!);
-      recs.push(...themeRecs);
+      // Filter theme recs too
+      const filteredThemeRecs = themeRecs.filter(r => !dismissedIds.has(r.id) && !negativeFeedbackIds.has(r.id));
+      recs.push(...filteredThemeRecs);
     }
 
     return recs.slice(0, 5);
@@ -1423,9 +1522,7 @@ export class RecommendationEngine {
     return recs;
   }
 
-  // ─── Template Customization Recommendations ──────────────────────────────
-
-  private recommendTemplateCustomizations(): Recommendation[] {
+  private recommendTemplateCustomizations(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const theme = this.portfolioData?.templateId ? getTemplate(this.portfolioData.templateId) : null;
     const { behaviorProfile } = this.userProfile;
@@ -1438,22 +1535,52 @@ export class RecommendationEngine {
       const prefersDark = behaviorProfile.colorSchemePreference === 'dark';
       
       if (currentDark !== prefersDark) {
+        const customId = 'customize-darkmode';
+        if (!dismissedIds.has(customId) && !negativeFeedbackIds.has(customId)) {
+          recs.push(this.createRecommendation({
+            type: 'template-customization',
+            title: `Switch to ${prefersDark ? 'Dark' : 'Light'} Mode`,
+            description: `You prefer ${behaviorProfile.colorSchemePreference} themes. This theme's default is ${currentDark ? 'dark' : 'light'}.`,
+            reasoning: 'Matching your color preference improves visual comfort and engagement.',
+            confidence: 0.7,
+            priority: 'low',
+            action: {
+              type: 'open-modal',
+              payload: { action: 'toggle-dark-mode' },
+              label: 'Toggle Dark Mode',
+            },
+            metadata: {
+              source: 'rule-based',
+              factors: [
+                { factor: 'color_preference', weight: 1.0, value: behaviorProfile.colorSchemePreference, explanation: 'Your preferred color scheme' },
+              ],
+              context: this.context,
+            },
+          }));
+        }
+      }
+    }
+
+    // Suggest font based on content density preference
+    if (behaviorProfile.contentDensityPreference === 'minimal' && theme.defaultTheme.fontSize !== 'sm') {
+      const customId = 'customize-fontsize';
+      if (!dismissedIds.has(customId) && !negativeFeedbackIds.has(customId)) {
         recs.push(this.createRecommendation({
           type: 'template-customization',
-          title: `Switch to ${prefersDark ? 'Dark' : 'Light'} Mode`,
-          description: `You prefer ${behaviorProfile.colorSchemePreference} themes. This theme's default is ${currentDark ? 'dark' : 'light'}.`,
-          reasoning: 'Matching your color preference improves visual comfort and engagement.',
-          confidence: 0.7,
+          title: 'Reduce Font Size for Compact Layout',
+          description: 'You prefer minimal content density. Smaller fonts fit more content without scrolling.',
+          reasoning: 'Aligning font size with density preference improves readability.',
+          confidence: 0.6,
           priority: 'low',
           action: {
             type: 'open-modal',
-            payload: { action: 'toggle-dark-mode' },
-            label: 'Toggle Dark Mode',
+            payload: { action: 'change-font-size', size: 'sm' },
+            label: 'Adjust Font Size',
           },
           metadata: {
             source: 'rule-based',
             factors: [
-              { factor: 'color_preference', weight: 1.0, value: behaviorProfile.colorSchemePreference, explanation: 'Your preferred color scheme' },
+              { factor: 'density_preference', weight: 1.0, value: 'minimal', explanation: 'You prefer minimal content density' },
             ],
             context: this.context,
           },
@@ -1461,36 +1588,10 @@ export class RecommendationEngine {
       }
     }
 
-    // Suggest font based on content density preference
-    if (behaviorProfile.contentDensityPreference === 'minimal' && theme.defaultTheme.fontSize !== 'sm') {
-      recs.push(this.createRecommendation({
-        type: 'template-customization',
-        title: 'Reduce Font Size for Compact Layout',
-        description: 'You prefer minimal content density. Smaller fonts fit more content without scrolling.',
-        reasoning: 'Aligning font size with density preference improves readability.',
-        confidence: 0.6,
-        priority: 'low',
-        action: {
-          type: 'open-modal',
-          payload: { action: 'change-font-size', size: 'sm' },
-          label: 'Adjust Font Size',
-        },
-        metadata: {
-          source: 'rule-based',
-          factors: [
-            { factor: 'density_preference', weight: 1.0, value: 'minimal', explanation: 'You prefer minimal content density' },
-          ],
-          context: this.context,
-        },
-      }));
-    }
-
     return recs;
   }
 
-  // ─── Section Completion Recommendations ──────────────────────────────────
-
-  private recommendSectionCompletion(): Recommendation[] {
+  private recommendSectionCompletion(dismissedIds: Set<string>, negativeFeedbackIds: Set<string>): Recommendation[] {
     const recs: Recommendation[] = [];
     const portfolio = this.portfolioData;
     
@@ -1507,6 +1608,9 @@ export class RecommendationEngine {
 
     for (const section of sections) {
       if (!section.check()) {
+        const sectionId = `section-${section.key}`;
+        if (dismissedIds.has(sectionId) || negativeFeedbackIds.has(sectionId)) continue;
+        
         recs.push(this.createRecommendation({
           type: 'section-completion',
           title: `Complete ${section.label} Section`,
@@ -1536,6 +1640,7 @@ export class RecommendationEngine {
   // ─── Helper: Create Recommendation Object ────────────────────────────────
 
   private createRecommendation(params: {
+    id?: string;
     type: RecommendationType;
     title: string;
     description: string;
@@ -1545,15 +1650,43 @@ export class RecommendationEngine {
     action?: RecommendationAction;
     metadata: RecommendationMetadata;
   }): Recommendation {
+    // Generate a deterministic slug ID based on type, action target, and title
+    // to prevent duplicate recommendations and ensure dismissal/feedback persistence
+    const keyParts = [
+      params.type,
+      params.action?.payload?.templateId ||
+      params.action?.payload?.skill?.name ||
+      params.action?.payload?.skillName ||
+      params.action?.payload?.projectTitle ||
+      params.action?.payload?.project?.title ||
+      params.action?.payload?.resourceId ||
+      params.action?.payload?.step ||
+      params.title
+    ];
+    const slug = keyParts
+      .filter(Boolean)
+      .join('-')
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-');
+    const deterministicId = params.id || `rec-${slug}`;
+
     return {
-      id: generateId(),
+      id: deterministicId,
       type: params.type,
       title: params.title,
       description: params.description,
       reasoning: params.reasoning,
       confidence: Math.max(0, Math.min(1, params.confidence)),
       priority: params.priority,
-      action: params.action,
+      action: params.action ? {
+        ...params.action,
+        payload: {
+          ...params.action.payload,
+          recommendationId: deterministicId,
+          recommendationType: params.type,
+        }
+      } : undefined,
       metadata: {
         ...params.metadata,
         factors: params.metadata.factors || [],

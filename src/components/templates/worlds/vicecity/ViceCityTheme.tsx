@@ -210,7 +210,7 @@ export default function ViceCityTheme({ data }: Props) {
               {experience.map((exp) => (
                 <div key={exp.id} className="border-l-2 border-[#FF007F] pl-4">
                   <div className="text-base font-bold text-white">{exp.position}</div>
-                  <div className="text-xs text-[#00F5D4]">{exp.company} // {exp.startDate} - {exp.endDate || 'Now'}</div>
+                  <div className="text-xs text-[#00F5D4]">{exp.company} \/ {exp.startDate} - {exp.endDate || 'Now'}</div>
                 </div>
               ))}
             </div>
@@ -233,7 +233,7 @@ export default function ViceCityTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-2 border-[#FF007F] bg-[#140A26] p-4 text-center font-mono text-xs text-neutral-400">
-          VICE CITY RECORDS // RECORDED ON ANALOG TAPE • {fullName.toUpperCase()}
+          VICE CITY RECORDS \/ RECORDED ON ANALOG TAPE \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

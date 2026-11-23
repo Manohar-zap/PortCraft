@@ -216,7 +216,7 @@ export default function CloudKingdomTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-2 border-[#BAE6FD] bg-white p-4 rounded-2xl text-center font-mono text-xs text-slate-500 shadow-sm">
-          CLOUD KINGDOM NAVIGATION FLEET // CELESTIAL HIGHLANDS • {fullName.toUpperCase()}
+          CLOUD KINGDOM NAVIGATION FLEET \/ CELESTIAL HIGHLANDS \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

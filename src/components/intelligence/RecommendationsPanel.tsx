@@ -9,10 +9,10 @@ import {
   RefreshCw, Eye, Check, Clock, Star, Brain, Zap,
   ChevronUp, ChevronDown
 } from 'lucide-react';
-import { useBehaviorTracker } from '@/lib/intelligence/behaviorTracker';
+import { useBehaviorTracker, calculatePortfolioCompleteness } from '@/lib/intelligence';
 import { createRecommendationEngine } from '@/lib/intelligence/recommendationEngine';
 import { Recommendation, RecommendationType, PortfolioData, UserContext } from '@/lib/intelligence/types';
-import { getRecommendations, addRecommendationFeedback } from '@/lib/intelligence/storage';
+import { getRecommendations, addRecommendationFeedback, dismissRecommendation } from '@/lib/intelligence/storage';
 
 interface Props {
   portfolioData: PortfolioData | null;
@@ -52,6 +52,17 @@ export default function RecommendationsPanel({
   const [filterType, setFilterType] = useState<RecommendationType | 'all'>('all');
   const tracker = useBehaviorTracker();
 
+  // Fingerprint to track changes to portfolio and trigger real-time refreshes
+  const dataFingerprint = portfolioData ? JSON.stringify({
+    templateId: portfolioData.templateId,
+    skillsCount: portfolioData.skills?.length || 0,
+    skills: portfolioData.skills?.map(s => `${s.name}:${s.level}`),
+    projectsCount: portfolioData.projects?.length || 0,
+    projects: portfolioData.projects?.map(p => p.title),
+    experienceCount: portfolioData.experience?.length || 0,
+    role: portfolioData.personal?.title || '',
+  }) : '';
+
   // Generate recommendations
   const generate = useCallback(async () => {
     if (!portfolioData || isGenerating) return;
@@ -60,7 +71,7 @@ export default function RecommendationsPanel({
     try {
       const engine = createRecommendationEngine(portfolioData, {
         page: userContext.currentPage,
-        portfolioCompleteness: calculateCompleteness(portfolioData),
+        portfolioCompleteness: calculatePortfolioCompleteness(portfolioData),
         currentTemplate: portfolioData.templateId,
       });
       
@@ -73,17 +84,17 @@ export default function RecommendationsPanel({
     }
   }, [portfolioData, userContext, isGenerating]);
 
-  // Load existing recommendations on mount
+  // Load recommendations and refresh whenever profile data, skills, goals or preferences change
   useEffect(() => {
-    const existing = getRecommendations()
-      .filter(r => !r.dismissedAt && !r.clickedAt)
-      .slice(0, maxRecommendations);
-    setRecommendations(existing);
-    
-    if (existing.length === 0 && portfolioData) {
+    if (portfolioData) {
       generate();
+    } else {
+      const existing = getRecommendations()
+        .filter(r => !r.dismissedAt && !r.clickedAt)
+        .slice(0, maxRecommendations);
+      setRecommendations(existing);
     }
-  }, [portfolioData, maxRecommendations]);
+  }, [dataFingerprint]);
 
   // Filter recommendations
   const filteredRecs = filterType === 'all' 
@@ -92,12 +103,15 @@ export default function RecommendationsPanel({
 
   // Handle feedback
   const handleFeedback = async (recId: string, feedback: 'helpful' | 'not-helpful' | 'irrelevant' | 'already-done') => {
-    await addRecommendationFeedback(recId, { rating: feedback, timestamp: new Date().toISOString() });
+    addRecommendationFeedback(recId, { rating: feedback, timestamp: new Date().toISOString() });
     tracker.trackRecommendationFeedback(recId, feedback);
     
-    // Remove dismissed recommendations
+    // Remove dismissed or unhelpful recommendations immediately
     if (feedback !== 'helpful') {
       setRecommendations(prev => prev.filter(r => r.id !== recId));
+    } else {
+      // Re-generate recommendations taking into account learned preferences
+      generate();
     }
   };
 
@@ -124,9 +138,10 @@ export default function RecommendationsPanel({
   };
 
   // Dismiss
-  const dismiss = (id: string) => {
+  const dismiss = (id: string, type: string = 'unknown') => {
+    dismissRecommendation(id);
     setRecommendations(prev => prev.filter(r => r.id !== id));
-    tracker.trackRecommendationDismiss(id, 'unknown');
+    tracker.trackRecommendationDismiss(id, type);
   };
 
   if (position === 'modal') {
@@ -233,7 +248,7 @@ function RecommendationsContent({
   recommendations: Recommendation[];
   onFeedback: (recId: string, feedback: 'helpful' | 'not-helpful' | 'irrelevant' | 'already-done') => void;
   onAction: (action: { type: string; label: string; payload: Record<string, any> } | undefined) => void;
-  onDismiss: (id: string) => void;
+  onDismiss: (id: string, type?: string) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
   isGenerating: boolean;
@@ -352,7 +367,7 @@ function RecommendationsContent({
                     <Eye size={12} className="line-through" />
                   </button>
                   <button
-                    onClick={() => onDismiss(rec.id)}
+                    onClick={() => onDismiss(rec.id, rec.type)}
                     className="flex items-center gap-1 px-2 py-1.5 text-white/50 hover:text-red-400 rounded-lg transition-colors ml-auto"
                     title="Dismiss"
                   >
@@ -379,25 +394,4 @@ function RecommendationsContent({
       )}
     </div>
   );
-}
-
-// ─── Helper ────────────────────────────────────────────────────────────────
-
-function calculateCompleteness(portfolio: PortfolioData): number {
-  const { personal, education, experience, skills, projects, achievements } = portfolio;
-  let score = 0;
-
-  if (personal.firstName && personal.lastName && personal.email && personal.title) score += 20;
-  else if (personal.firstName || personal.lastName) score += 10;
-
-  if (education.length > 0) score += 15;
-  if (experience.length > 0) score += 20;
-  if (skills.length >= 8) score += 15;
-  else if (skills.length > 0) score += Math.round(15 * skills.length / 8);
-  if (projects.length >= 4) score += 20;
-  else if (projects.length > 0) score += Math.round(20 * projects.length / 4);
-  if (achievements.length >= 3) score += 10;
-  else if (achievements.length > 0) score += Math.round(10 * achievements.length / 3);
-
-  return Math.min(score, 100);
 }

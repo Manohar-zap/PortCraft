@@ -195,7 +195,7 @@ export default function WastelandSurvivorTheme({ data }: Props) {
               {experience.map((exp) => (
                 <div key={exp.id} className="border-l-2 border-[#FBBF24] pl-4">
                   <div className="text-base font-bold text-white uppercase font-mono">{exp.position}</div>
-                  <div className="text-xs text-[#B45309] font-mono">{exp.company} // {exp.startDate} - {exp.endDate || 'Now'}</div>
+                  <div className="text-xs text-[#B45309] font-mono">{exp.company} \/ {exp.startDate} - {exp.endDate || 'Now'}</div>
                 </div>
               ))}
             </div>
@@ -218,7 +218,7 @@ export default function WastelandSurvivorTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-2 border-[#B45309] bg-[#1A1411] p-4 text-center text-xs text-neutral-500">
-          WASTELAND SURVIVOR NETWORK // OUTPOST REGISTER • {fullName.toUpperCase()}
+          WASTELAND SURVIVOR NETWORK \/ OUTPOST REGISTER \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

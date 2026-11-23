@@ -372,7 +372,7 @@ export default function CyberpunkTheme({ data }: Props) {
                     {achievements.map((ach) => (
                       <div key={ach.id} className="text-xs">
                         <span className="text-white font-bold">{ach.title}</span>
-                        <span className="text-neutral-500"> // {ach.issuer}</span>
+                        <span className="text-neutral-500"> \/ {ach.issuer}</span>
                       </div>
                     ))}
                   </div>
@@ -384,7 +384,7 @@ export default function CyberpunkTheme({ data }: Props) {
 
         {/* ===================== SYSTEM LOG TERMINAL FOOTER ===================== */}
         <footer className="border-2 border-[#00FFFF] bg-[#0A0A14] p-4 text-center text-xs text-neutral-500 shadow-[0_0_15px_rgba(0,255,255,0.2)]">
-          SYSTEM_VERSION: NIGHT_CITY_OS_v3.8 • {fullName.toUpperCase()} • ALL RIGHTS CHROMED
+          SYSTEM_VERSION: NIGHT_CITY_OS_v3.8 \u2022 {fullName.toUpperCase()} \u2022 ALL RIGHTS CHROMED
         </footer>
       </div>
     </div>

@@ -396,7 +396,7 @@ export default function GothamTheme({ data }: Props) {
 
         {/* ===================== FOOTER SECURE CLOSING ===================== */}
         <footer className="border border-[#232936] bg-[#0C0F17] p-4 text-center font-mono text-xs text-neutral-500">
-          WAYNE ENTERPRISES ARCHIVE // RECORD REF #9482 // {fullName.toUpperCase()} // END TRANSMISSION
+          WAYNE ENTERPRISES ARCHIVE \/ RECORD REF #9482 \/ {fullName.toUpperCase()} \/ END TRANSMISSION
         </footer>
       </div>
     </div>

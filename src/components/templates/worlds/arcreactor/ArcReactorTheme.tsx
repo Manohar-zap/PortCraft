@@ -310,7 +310,7 @@ export default function ArcReactorTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border border-[#00F0FF]/30 bg-[#070D1C] p-4 text-center font-mono text-xs text-neutral-400">
-          STARK INDUSTRIES R&D LAB // MARK-85 PLATFORM • {fullName.toUpperCase()} • ALL RIGHTS ENGINEERED
+          STARK INDUSTRIES R&D LAB \/ MARK-85 PLATFORM \u2022 {fullName.toUpperCase()} \u2022 ALL RIGHTS ENGINEERED
         </footer>
       </div>
     </div>

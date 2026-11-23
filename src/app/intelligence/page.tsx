@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -14,10 +14,11 @@ import {
 import { loadPortfolio } from '@/lib/storage';
 import { PortfolioData } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
-import { getBehaviorTracker } from '@/lib/intelligence/behaviorTracker';
+import { getBehaviorTracker, getOrBuildUserContext, calculatePortfolioCompleteness } from '@/lib/intelligence';
 import { createRecommendationEngine } from '@/lib/intelligence/recommendationEngine';
 import { createIntelligentAssistant, QUICK_ACTIONS } from '@/lib/intelligence/intelligentAssistant';
 import { createUXEvaluationEngine, ABTestingFramework, generateDashboardMetrics, HeuristicEvaluator } from '@/lib/intelligence/uxEvaluation';
+import { saveHeuristicEvaluation } from '@/lib/intelligence/storage';
 import { usePrivacy } from '@/lib/intelligence/privacy';
 import { UserContext, Recommendation } from '@/lib/intelligence/types';
 import IntelligentAssistantWidget from '@/components/intelligence/IntelligentAssistantWidget';
@@ -79,20 +80,27 @@ export default function IntelligencePage() {
   const [uxMetrics, setUxMetrics] = useState<ReturnType<typeof generateDashboardMetrics> | null>(null);
   const tracker = getBehaviorTracker();
   const privacy = usePrivacy();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setData(loadPortfolio());
     ABTestingFramework.initializeTests();
   }, []);
 
+  // Derived user context for intelligence (client-side only)
+  const userContext = useMemo(() => {
+    if (!mounted) return null;
+    return getOrBuildUserContext('/intelligence', data);
+  }, [mounted, data]);
+
   const generateRecommendations = async () => {
-    if (!data || isGenerating) return;
+    if (!data || isGenerating || !userContext) return;
     setIsGenerating(true);
     try {
-      const userContext = buildUserContext();
       const engine = createRecommendationEngine(data, {
         page: '/intelligence',
-        portfolioCompleteness: calculateCompleteness(data),
+        portfolioCompleteness: calculatePortfolioCompleteness(data),
         currentTemplate: data.templateId,
       });
       const recs = await engine.generateAllRecommendations();
@@ -105,41 +113,20 @@ export default function IntelligencePage() {
   };
 
   const runUXEvaluation = async () => {
-    if (!data) return;
-    const userContext = buildUserContext();
+    if (!userContext) return;
     const engine = createUXEvaluationEngine(userContext.userId || 'anonymous', userContext.sessionId);
-    // Simulate some metrics
-    engine.recordPageView('/intelligence');
-    engine.recordInteraction('/intelligence', 'view');
-    engine.recordTaskStart('view_dashboard');
-    engine.recordTaskComplete('view_dashboard', true, 5000, 3);
-    engine.recordFeatureAdoption('recommendations');
-    engine.recordFeatureAdoption('assistant');
+    // Finalize metrics from genuine session events
     engine.saveMetrics();
     
+    // Run genuine heuristic evaluation on the active portfolio
+    if (data) {
+      const evaluation = HeuristicEvaluator.evaluatePortfolio(data, 'PortCraft Usability Engine', '/intelligence');
+      saveHeuristicEvaluation(evaluation);
+    }
+
     const metrics = generateDashboardMetrics(userContext.userId);
     setUxMetrics(metrics);
   };
-
-  const buildUserContext = (): UserContext => ({
-    currentPage: '/intelligence',
-    sessionId: 'intelligence-session',
-    sessionStart: new Date().toISOString(),
-    sessionDuration: Date.now() - Date.now(),
-    actionsInSession: [],
-    device: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
-    viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight } : { width: 1920, height: 1080 },
-    connection: 'fast',
-    prefersReducedMotion: typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    prefersDarkMode: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
-    timeOfDay: (() => { const h = new Date().getHours(); if (h < 12) return 'morning'; if (h < 17) return 'afternoon'; if (h < 22) return 'evening'; return 'night'; })(),
-    dayOfWeek: new Date().getDay(),
-    isWeekend: [0, 6].includes(new Date().getDay()),
-    isNewUser: false,
-    isReturningUser: true,
-    daysSinceLastVisit: 0,
-    profileCompleteness: data ? calculateCompleteness(data) : 0,
-  });
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <Sparkles size={16} /> },
@@ -201,7 +188,7 @@ export default function IntelligencePage() {
             >
               {activeTab === 'overview' && <OverviewTab features={INTELLIGENCE_FEATURES} />}
               {activeTab === 'demo' && <DemoTab data={data} onGenerate={generateRecommendations} isGenerating={isGenerating} recommendations={recommendations} />}
-              {activeTab === 'recommendations' && <RecommendationsTab data={data} recommendations={recommendations} isGenerating={isGenerating} onGenerate={generateRecommendations} />}
+              {activeTab === 'recommendations' && <RecommendationsTab data={data} userContext={userContext} />}
               {activeTab === 'assistant' && <AssistantTab data={data} />}
               {activeTab === 'ux' && <UxTab uxMetrics={uxMetrics} onRunEvaluation={runUXEvaluation} />}
               {activeTab === 'privacy' && <PrivacyTab onClose={() => setShowPrivacy(false)} />}
@@ -212,10 +199,10 @@ export default function IntelligencePage() {
 
       {/* Assistant Widget */}
       <AnimatePresence>
-        {showAssistant && data && (
+        {showAssistant && data && userContext && (
           <IntelligentAssistantWidget
             portfolioData={data}
-            userContext={buildUserContext()}
+            userContext={userContext}
             position="bottom-right"
             isOpen={showAssistant}
             onClose={() => setShowAssistant(false)}
@@ -392,56 +379,41 @@ function DemoTab({ data, onGenerate, isGenerating, recommendations }: { data: Po
   );
 }
 
-function RecommendationsTab({ data, recommendations, isGenerating, onGenerate }: { data: PortfolioData | null; recommendations: Recommendation[]; isGenerating: boolean; onGenerate: () => void }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold font-poppins">Recommendations Engine</h2>
-          <p className="text-white/50">Personalized suggestions based on your profile and behavior.</p>
-        </div>
-        <button
-          onClick={onGenerate}
-          disabled={isGenerating || !data}
-          className="px-4 py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-xl transition-all"
-        >
-          {isGenerating ? 'Generating...' : 'Generate New'}
-        </button>
+function RecommendationsTab({ data, userContext }: { data: PortfolioData | null; userContext: UserContext | null }) {
+  if (!userContext || !data) {
+    return (
+      <div className="p-8 text-center border border-dashed border-white/10 rounded-xl">
+        <p className="text-white/40">Load or create a portfolio in the builder to see personalized recommendations.</p>
+        <Link href="/builder" className="mt-4 inline-block px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-sm">
+          Go to Builder
+        </Link>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {recommendations.length > 0 ? (
-          recommendations.map((rec) => (
-            <motion.div
-              key={rec.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white/[0.02] border border-white/5 rounded-xl p-4"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs px-2 py-0.5 bg-violet-500/20 text-violet-400 rounded">{rec.type}</span>
-                <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-400 rounded">{rec.priority}</span>
-              </div>
-              <h4 className="font-semibold text-white mb-1">{rec.title}</h4>
-              <p className="text-white/60 text-sm mb-3">{rec.description}</p>
-              <div className="flex items-center gap-4 text-xs text-white/40">
-                <span>{Math.round(rec.confidence * 100)}% confidence</span>
-                <span>{rec.metadata.source}</span>
-              </div>
-            </motion.div>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12 border border-dashed border-white/10 rounded-xl">
-            <p className="text-white/40">No recommendations yet. Generate some above!</p>
-          </div>
-        )}
-      </div>
-    </div>
+  return (
+    <RecommendationsPanel
+      portfolioData={data}
+      userContext={userContext}
+      position="inline"
+      onAction={(action) => {
+        if (action.type === 'navigate' && action.payload.page) {
+          window.location.href = action.payload.page;
+        } else if (action.type === 'apply-template') {
+          window.location.href = '/preview';
+        } else if (action.type === 'open-resource' && action.payload.url) {
+          window.open(action.payload.url, '_blank');
+        } else {
+          console.log('Action in dashboard:', action);
+        }
+      }}
+    />
   );
 }
 
 function AssistantTab({ data }: { data: PortfolioData | null }) {
   const [showWidget, setShowWidget] = useState(false);
+  const context = getOrBuildUserContext('/intelligence', data);
 
   return (
     <div className="space-y-8">
@@ -479,25 +451,7 @@ function AssistantTab({ data }: { data: PortfolioData | null }) {
       {showWidget && data && (
         <IntelligentAssistantWidget
           portfolioData={data}
-          userContext={{
-            currentPage: '/intelligence',
-            sessionId: 'assistant-demo',
-            sessionStart: new Date().toISOString(),
-            sessionDuration: 0,
-            actionsInSession: [],
-            device: 'desktop',
-            viewport: { width: 1920, height: 1080 },
-            connection: 'fast',
-            prefersReducedMotion: false,
-            prefersDarkMode: true,
-            timeOfDay: 'afternoon',
-            dayOfWeek: new Date().getDay(),
-            isWeekend: false,
-            isNewUser: false,
-            isReturningUser: true,
-            daysSinceLastVisit: 0,
-            profileCompleteness: calculateCompleteness(data),
-          }}
+          userContext={context}
           position="bottom-right"
           isOpen={true}
           onClose={() => setShowWidget(false)}
@@ -606,25 +560,4 @@ function MetricCard({ title, value, icon }: { title: string; value: string | num
       </div>
     </div>
   );
-}
-
-// ─── Helper ────────────────────────────────────────────────────────────────
-
-function calculateCompleteness(portfolio: PortfolioData): number {
-  const { personal, education, experience, skills, projects, achievements } = portfolio;
-  let score = 0;
-
-  if (personal.firstName && personal.lastName && personal.email && personal.title) score += 20;
-  else if (personal.firstName || personal.lastName) score += 10;
-
-  if (education.length > 0) score += 15;
-  if (experience.length > 0) score += 20;
-  if (skills.length >= 8) score += 15;
-  else if (skills.length > 0) score += Math.round(15 * skills.length / 8);
-  if (projects.length >= 4) score += 20;
-  else if (projects.length > 0) score += Math.round(20 * projects.length / 4);
-  if (achievements.length >= 3) score += 10;
-  else if (achievements.length > 0) score += Math.round(10 * achievements.length / 3);
-
-  return Math.min(score, 100);
 }

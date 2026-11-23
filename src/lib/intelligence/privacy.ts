@@ -105,7 +105,7 @@ export class PrivacyManager {
 
   acceptEssentialOnly(): ConsentSettings {
     return this.updateConsent({
-      analytics: true, // Essential for functionality
+      analytics: false, // Essential only: tracking disabled
       personalization: false,
       aiTraining: false,
       thirdPartySharing: false,
@@ -232,6 +232,16 @@ export class PrivacyManager {
 
   async deleteRecommendations(): Promise<boolean> {
     const request = this.requestDeletion('recommendations');
+    return processDataDeletion(request.requestId);
+  }
+
+  async deleteProfileData(): Promise<boolean> {
+    const request = this.requestDeletion('profile');
+    return processDataDeletion(request.requestId);
+  }
+
+  async deleteEventsData(): Promise<boolean> {
+    const request = this.requestDeletion('events');
     return processDataDeletion(request.requestId);
   }
 
@@ -370,6 +380,8 @@ export function usePrivacy() {
     deleteAllData: () => manager.deleteAllData(),
     deleteAnalyticsData: () => manager.deleteAnalyticsData(),
     deleteRecommendations: () => manager.deleteRecommendations(),
+    deleteProfileData: () => manager.deleteProfileData(),
+    deleteEventsData: () => manager.deleteEventsData(),
     
     // Dashboard
     getDashboardData: () => manager.getDashboardData(),

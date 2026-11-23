@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,9 +8,9 @@ import {
   Monitor, Tablet, Smartphone, Settings2, X, Brain, Lightbulb
 } from 'lucide-react';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
-import { PortfolioData } from '@/lib/types';
+import { PortfolioData, generateId } from '@/lib/types';
 import { exportPortfolio } from '@/lib/exporter';
-import { TEMPLATES } from '@/lib/templates';
+import { TEMPLATES, getTemplate } from '@/lib/templates';
 import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import Customizer from '@/components/customizer/Customizer';
 
@@ -20,6 +20,7 @@ import ChatWidget from '@/components/ai/ChatWidget';
 import IntelligentAssistantWidget from '@/components/intelligence/IntelligentAssistantWidget';
 import RecommendationsPanel from '@/components/intelligence/RecommendationsPanel';
 import { UserContext } from '@/lib/intelligence/types';
+import { getOrBuildUserContext } from '@/lib/intelligence';
 
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
@@ -36,40 +37,18 @@ export default function PreviewPage() {
   const [exportDone, setExportDone] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
-  const [userContext, setUserContext] = useState<UserContext | null>(null);
-
-  
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     setData(loadPortfolio());
   }, []);
 
-  // Build user context for intelligence (client-side only)
-  useEffect(() => {
-    const now = new Date();
-    const h = now.getHours();
-    const timeOfDay = h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
-    
-    setUserContext({
-      currentPage: '/preview',
-      sessionId: 'preview-session',
-      sessionStart: now.toISOString(),
-      sessionDuration: 0,
-      actionsInSession: [],
-      device: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
-      viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight } : { width: 1920, height: 1080 },
-      connection: 'fast',
-      prefersReducedMotion: typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-      prefersDarkMode: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
-      timeOfDay,
-      dayOfWeek: now.getDay(),
-      isWeekend: [0, 6].includes(now.getDay()),
-      isNewUser: false,
-      isReturningUser: true,
-      daysSinceLastVisit: 0,
-      profileCompleteness: data ? calculateCompleteness(data) : 0,
-    });
-  }, [data]);
+  // Derived user context for intelligence (client-side only)
+  const userContext = useMemo(() => {
+    if (!mounted) return null;
+    return getOrBuildUserContext('/preview', data);
+  }, [mounted, data]);
 
   const updateData = (partial: Partial<PortfolioData>) => {
     setData((prev) => {
@@ -82,6 +61,9 @@ export default function PreviewPage() {
 
   const handleRecommendationAction = (action: { type: string; label: string; payload: Record<string, any> }) => {
     switch (action.type) {
+      case 'close':
+        setShowRecommendations(false);
+        break;
       case 'navigate':
         if (action.payload.page) {
           window.location.href = action.payload.page;
@@ -89,40 +71,60 @@ export default function PreviewPage() {
         break;
       case 'apply-template':
         if (action.payload.templateId && data) {
-          const template = TEMPLATES.find(t => t.id === action.payload.templateId);
+          const template = getTemplate(action.payload.templateId);
           if (template) {
             updateData({
-              templateId: action.payload.templateId,
+              templateId: template.id,
               theme: { ...data.theme, ...template.defaultTheme },
             });
           }
         }
         break;
+      case 'add-skill':
+        if (data) {
+          const skillObj = action.payload.skill || {
+            name: action.payload.skillName || 'New Skill',
+            level: 3,
+            category: action.payload.skillCategory || 'Technical',
+          };
+          const exists = data.skills?.some(s => s.name.toLowerCase() === skillObj.name.toLowerCase());
+          if (!exists) {
+            updateData({
+              skills: [...(data.skills || []), { id: generateId(), name: skillObj.name, level: skillObj.level || 3, category: skillObj.category || 'Technical' }],
+            });
+          }
+        }
+        break;
+      case 'create-project':
+        if (data) {
+          const newProj = {
+            id: generateId(),
+            title: action.payload.projectTitle || action.payload.project?.title || 'New Project',
+            description: action.payload.projectIdea || action.payload.project?.description || '',
+            techStack: action.payload.techStack || action.payload.project?.techStack || [],
+            liveUrl: '',
+            githubUrl: '',
+            imageUrl: '',
+            featured: false,
+          };
+          updateData({
+            projects: [...(data.projects || []), newProj],
+          });
+        }
+        break;
+      case 'open-resource':
+        if (action.payload.url) {
+          window.open(action.payload.url, '_blank');
+        }
+        break;
       case 'open-modal':
-        // Could trigger modals
         console.log('Open modal:', action.payload);
+        break;
+      default:
+        console.log('Action handled:', action);
         break;
     }
   };
-
-  function calculateCompleteness(portfolio: PortfolioData): number {
-    const { personal, education, experience, skills, projects, achievements } = portfolio;
-    let score = 0;
-
-    if (personal.firstName && personal.lastName && personal.email && personal.title) score += 20;
-    else if (personal.firstName || personal.lastName) score += 10;
-
-    if (education.length > 0) score += 15;
-    if (experience.length > 0) score += 20;
-    if (skills.length >= 8) score += 15;
-    else if (skills.length > 0) score += Math.round(15 * skills.length / 8);
-    if (projects.length >= 4) score += 20;
-    else if (projects.length > 0) score += Math.round(20 * projects.length / 4);
-    if (achievements.length >= 3) score += 10;
-    else if (achievements.length > 0) score += Math.round(10 * achievements.length / 3);
-
-    return Math.min(score, 100);
-  }
 
   const handleExport = async () => {
     if (!data) return;
@@ -290,6 +292,37 @@ export default function PreviewPage() {
             <TemplateRenderer data={data} />
           </DevicePreviewFrame>
         </div>
+
+        {/* Recommendations sidebar (right) */}
+        <AnimatePresence>
+          {showRecommendations && data && userContext && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 360, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="flex-shrink-0 overflow-hidden border-l border-white/[0.07]"
+            >
+              <div className="w-[360px] h-full overflow-y-auto bg-[#0d0d14]">
+                <div className="flex items-center justify-between p-4 border-b border-white/[0.07]">
+                  <div className="flex items-center gap-2">
+                    <Lightbulb size={16} className="text-violet-400" />
+                    <span className="font-semibold text-sm">Recommendations</span>
+                  </div>
+                  <button onClick={() => setShowRecommendations(false)} className="text-white/40 hover:text-white transition-colors">
+                    <X size={18} />
+                  </button>
+                </div>
+                <RecommendationsPanel
+                  portfolioData={data}
+                  userContext={userContext}
+                  position="inline"
+                  onAction={handleRecommendationAction}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Export success toast */}
@@ -303,18 +336,6 @@ export default function PreviewPage() {
           >
             ✓ Portfolio downloaded! Unzip and open index.html to view.
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Recommendations Panel */}
-      <AnimatePresence>
-        {showRecommendations && data && userContext && (
-          <RecommendationsPanel
-            portfolioData={data}
-            userContext={userContext}
-            position="sidebar"
-            onAction={handleRecommendationAction}
-          />
         )}
       </AnimatePresence>
 

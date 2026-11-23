@@ -220,7 +220,7 @@ export function parseLinkedInText(rawText: string): ParsedLinkedInData {
           skills.push({
             id: generateId(),
             name: item,
-            level: 4,
+            level: 0, // Unknown - strictly remains unrated (0) until user sets it
             category: categorizeSkill(item),
           });
         }
@@ -243,7 +243,7 @@ export function parseLinkedInText(rawText: string): ParsedLinkedInData {
             skills.push({
               id: generateId(),
               name: p,
-              level: 4,
+              level: 0, // Unknown - strictly remains unrated (0) until user sets it
               category: categorizeSkill(p),
             });
           }

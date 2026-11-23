@@ -663,8 +663,8 @@ export interface RetentionPolicy {
 // ─── Shared Constants ────────────────────────────────────────────────────────
 
 export const DEFAULT_CONSENT: ConsentSettings = {
-  analytics: true,
-  personalization: true,
+  analytics: false,
+  personalization: false,
   aiTraining: false,
   thirdPartySharing: false,
   marketingEmails: false,

@@ -68,6 +68,12 @@ export default function PrivacyDashboard({ isOpen, onClose }: Props) {
         case 'recommendations':
           success = await privacy.deleteRecommendations();
           break;
+        case 'profile':
+          success = await privacy.deleteProfileData();
+          break;
+        case 'events':
+          success = await privacy.deleteEventsData();
+          break;
         default:
           success = false;
       }

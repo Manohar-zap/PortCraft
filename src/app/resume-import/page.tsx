@@ -213,7 +213,7 @@ export default function ResumeImportPage() {
       skills: [...prev.skills, {
         id: generateId(),
         name: '',
-        level: 3,
+        level: 0,
         category: 'General',
       }],
     }));
@@ -980,9 +980,9 @@ function ReviewStep({
                   />
                   <EditableField
                     label="Level"
-                    value={skill.level.toString()}
-                    onChange={(v) => onSkillChange(skill.id, 'level', parseInt(v) || 3)}
-                    placeholder="3"
+                    value={skill.level > 0 ? skill.level.toString() : ''}
+                    onChange={(v) => onSkillChange(skill.id, 'level', v ? parseInt(v) || 0 : 0)}
+                    placeholder="1-5"
                     icon={Star}
                     type="number"
                     min={1}

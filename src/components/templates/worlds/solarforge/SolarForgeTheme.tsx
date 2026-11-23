@@ -222,7 +222,7 @@ export default function SolarForgeTheme({ data }: Props) {
 
         {/* ===================== FOOTER ===================== */}
         <footer className="border-2 border-[#FF5400] bg-[#170E08] p-4 text-center text-xs text-neutral-500">
-          SOLAR FORGE FOUNDRY // HAMMERED IN STEEL • {fullName.toUpperCase()}
+          SOLAR FORGE FOUNDRY \/ HAMMERED IN STEEL \u2022 {fullName.toUpperCase()}
         </footer>
       </div>
     </div>

@@ -198,7 +198,7 @@ export default function MinimalistTheme({ data }: Props) {
                   <div key={edu.id} className="border-l-2 border-black pl-4">
                     <div className="font-bold text-base uppercase text-black">{edu.institution}</div>
                     <div className="text-xs font-mono text-neutral-600 mt-0.5">
-                      {edu.degree} in {edu.field} // {edu.startYear} – {edu.endYear}
+                      {edu.degree} in {edu.field} \/ {edu.startYear} \u2013 {edu.endYear}
                     </div>
                   </div>
                 ))}
@@ -209,8 +209,8 @@ export default function MinimalistTheme({ data }: Props) {
 
         {/* ===================== SWISS FOOTER ===================== */}
         <footer className="border-t-2 border-black pt-8 flex flex-wrap items-center justify-between text-xs font-mono uppercase text-neutral-500">
-          <span>PORTCRAFT // SWISS MINIMALIST ENGINE</span>
-          <span>{fullName} // ALL DATA DETERMINISTIC</span>
+          <span>PORTCRAFT \/ SWISS MINIMALIST ENGINE</span>
+          <span>{fullName} \/ ALL DATA DETERMINISTIC</span>
         </footer>
       </div>
     </div>

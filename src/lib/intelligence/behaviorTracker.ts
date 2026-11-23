@@ -10,7 +10,7 @@ import {
   SkillEvidence,
   PortfolioData,
 } from './types';
-import { getUserProfile, saveUserProfile, trackEvent, getEvents, startSession, updateSession, endSession, getOrCreateAnonymousId, updateUserProfile } from './storage';
+import { getUserProfile, saveUserProfile, trackEvent, getEvents, startSession, updateSession, endSession, getOrCreateAnonymousId, updateUserProfile, getConsent, getOrCreateActiveSession } from './storage';
 import { generateId } from '@/lib/types';
 
 // ─── Behavior Tracker ──────────────────────────────────────────────────────
@@ -26,51 +26,81 @@ export class BehaviorTracker {
   private pendingUpdates: Map<string, any>;
   private flushInterval: NodeJS.Timeout | null;
   private isInitialized: boolean;
+  private visibilityHandler: (() => void) | null = null;
+  private unloadHandler: (() => void) | null = null;
+  private scrollHandler: (() => void) | null = null;
+  private consentHandler: ((e: Event) => void) | null = null;
 
   constructor() {
     this.userId = getOrCreateAnonymousId();
-    this.sessionId = generateId();
-    this.sessionStart = Date.now();
+    const active = typeof window !== 'undefined' ? getOrCreateActiveSession(this.userId) : null;
+    this.sessionId = active?.id || generateId();
+    this.sessionStart = active?.startedAt ? new Date(active.startedAt).getTime() : Date.now();
     this.lastActivity = Date.now();
-    this.actionCount = 0;
-    this.pageViews = 0;
+    this.actionCount = active?.events || 0;
+    this.pageViews = active?.pageViews || 0;
     this.currentPage = '';
     this.pendingUpdates = new Map();
     this.flushInterval = null;
     this.isInitialized = false;
+
+    // Listen for runtime consent changes
+    if (typeof window !== 'undefined') {
+      this.consentHandler = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        const consent = customEvent.detail;
+        if (consent && consent.analytics === false) {
+          this.stopTracking();
+        } else if (consent && consent.analytics === true && !this.isInitialized) {
+          this.initialize();
+        }
+      };
+      window.addEventListener('portcraft_consent_changed', this.consentHandler);
+    }
   }
 
   // ─── Initialization ──────────────────────────────────────────────────────
 
   initialize(): void {
     if (this.isInitialized) return;
+    if (!this.canTrackAnalytics()) {
+      return;
+    }
     this.isInitialized = true;
 
-    // Start session
-    startSession(this.userId);
+    // Start or resume session
+    const active = getOrCreateActiveSession(this.userId);
+    if (active) {
+      this.sessionId = active.id;
+      this.sessionStart = new Date(active.startedAt).getTime();
+    }
 
     // Start periodic flush
     this.flushInterval = setInterval(() => this.flushPendingUpdates(), 30000); // Every 30 seconds
 
     // Track page visibility changes
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', () => {
+      this.visibilityHandler = () => {
+        if (!this.canTrackAnalytics()) return;
         if (document.hidden) {
           this.trackEvent('page_hidden', { page: this.currentPage });
           this.flushPendingUpdates();
         } else {
           this.trackEvent('page_visible', { page: this.currentPage });
         }
-      });
+      };
+      document.addEventListener('visibilitychange', this.visibilityHandler);
 
       // Track before unload
-      window.addEventListener('beforeunload', () => {
+      this.unloadHandler = () => {
         this.endSession();
-      });
+      };
+      window.addEventListener('beforeunload', this.unloadHandler);
 
       // Track scroll depth
       let maxScroll = 0;
-      window.addEventListener('scroll', () => {
+      this.scrollHandler = () => {
+        if (!this.canTrackAnalytics()) return;
         const scrollPercent = Math.round(
           (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100
         );
@@ -83,13 +113,41 @@ export class BehaviorTracker {
             });
           }
         }
-      }, { passive: true });
+      };
+      window.addEventListener('scroll', this.scrollHandler, { passive: true });
     }
+  }
+
+  stopTracking(): void {
+    if (this.flushInterval) {
+      clearInterval(this.flushInterval);
+      this.flushInterval = null;
+    }
+    if (typeof document !== 'undefined' && this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+    if (typeof window !== 'undefined') {
+      if (this.unloadHandler) {
+        window.removeEventListener('beforeunload', this.unloadHandler);
+        this.unloadHandler = null;
+      }
+      if (this.scrollHandler) {
+        window.removeEventListener('scroll', this.scrollHandler);
+        this.scrollHandler = null;
+      }
+    }
+    this.pendingUpdates.clear();
+    this.isInitialized = false;
+    this.sessionId = '';
+    this.actionCount = 0;
+    this.pageViews = 0;
   }
 
   // ─── Page Tracking ───────────────────────────────────────────────────────
 
   trackPageView(page: string, metadata?: Record<string, any>): void {
+    if (!this.canTrackAnalytics()) return;
     this.currentPage = page;
     this.pageViews++;
     this.updateActivity();
@@ -102,9 +160,28 @@ export class BehaviorTracker {
     });
   }
 
+  // ─── Consent Checking ──────────────────────────────────────────────────────
+
+  private canTrackAnalytics(): boolean {
+    if (typeof window === 'undefined') return false;
+    const consent = getConsent();
+    return consent.analytics === true;
+  }
+
+  private canTrackPersonalization(): boolean {
+    if (typeof window === 'undefined') return false;
+    const consent = getConsent();
+    return consent.personalization === true;
+  }
+
   // ─── Event Tracking ──────────────────────────────────────────────────────
 
   trackEvent(eventName: string, properties: Record<string, any> = {}): void {
+    // Check consent for analytics events
+    if (!this.canTrackAnalytics()) {
+      return;
+    }
+
     this.updateActivity();
     this.actionCount++;
 
@@ -184,6 +261,9 @@ export class BehaviorTracker {
   }
 
   private processBehaviorUpdates(updates: Record<string, any>): void {
+    if (!this.canTrackPersonalization()) {
+      return;
+    }
     updateUserProfile(profile => {
       let updated = { ...profile };
       const behavior = { ...updated.behaviorProfile };
@@ -522,6 +602,14 @@ export class BehaviorTracker {
     return this.sessionId;
   }
 
+  getSessionStartTime(): number {
+    return this.sessionStart;
+  }
+
+  getSessionDuration(): number {
+    return Math.max(0, Date.now() - this.sessionStart);
+  }
+
   getUserId(): string {
     return this.userId;
   }
@@ -635,4 +723,105 @@ export function useBehaviorTracker() {
   }
 
   return tracker;
+}
+
+// ─── Shared Completeness & Context Builder ────────────────────────────────
+
+export function calculatePortfolioCompleteness(portfolio?: PortfolioData | null): number {
+  if (!portfolio) return 0;
+  const { personal, education, experience, skills, projects, achievements } = portfolio;
+  let score = 0;
+
+  if (personal?.firstName && personal?.lastName && personal?.email && personal?.title) score += 20;
+  else if (personal?.firstName || personal?.lastName) score += 10;
+
+  if (education && education.length > 0) score += 15;
+  if (experience && experience.length > 0) score += 20;
+  if (skills && skills.length >= 8) score += 15;
+  else if (skills && skills.length > 0) score += Math.round((15 * skills.length) / 8);
+  if (projects && projects.length >= 4) score += 20;
+  else if (projects && projects.length > 0) score += Math.round((20 * projects.length) / 4);
+  if (achievements && achievements.length >= 3) score += 10;
+  else if (achievements && achievements.length > 0) score += Math.round((10 * achievements.length) / 3);
+
+  return Math.min(score, 100);
+}
+
+export function getOrBuildUserContext(
+  currentPage: string,
+  portfolio?: PortfolioData | null,
+  extra?: Partial<UserContext>
+): UserContext {
+  const tracker = getBehaviorTracker();
+  const profile = getUserProfile();
+  const consent = getConsent();
+  const sessionId = tracker.getSessionId();
+  const sessionStart = tracker.getSessionStartTime();
+  const sessionDuration = tracker.getSessionDuration();
+
+  // User is new if no stored visit marker exists
+  const hasVisited = typeof window !== 'undefined' ? localStorage.getItem('portcraft_has_visited') : null;
+  const isNewUser = !hasVisited;
+  const isReturningUser = !!hasVisited;
+  if (typeof window !== 'undefined' && !hasVisited) {
+    try {
+      localStorage.setItem('portcraft_has_visited', 'true');
+    } catch {
+      // Storage unavailable
+    }
+  }
+
+  // Real days since last visit
+  let daysSinceLastVisit = 0;
+  if (profile.behaviorProfile?.lastActiveDate) {
+    const diffMs = Date.now() - new Date(profile.behaviorProfile.lastActiveDate).getTime();
+    daysSinceLastVisit = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  }
+
+  // Real actions in session from actual events
+  const sessionEvents = consent.analytics ? getEvents({ sessionId }) : [];
+  const actionsInSession: SessionAction[] = sessionEvents.map(e => ({
+    type: e.eventName,
+    target: (e.properties?.target || e.properties?.page || e.eventType || 'app') as string,
+    timestamp: e.timestamp,
+    metadata: e.properties,
+  }));
+
+  const now = new Date();
+  const h = now.getHours();
+  const timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' =
+    h < 12 ? 'morning' : h < 17 ? 'afternoon' : h < 22 ? 'evening' : 'night';
+
+  const device: 'mobile' | 'tablet' | 'desktop' = typeof window !== 'undefined'
+    ? (window.innerWidth < 768 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop')
+    : 'desktop';
+
+  const connection: 'fast' | 'slow' | 'offline' = typeof navigator !== 'undefined'
+    ? (!navigator.onLine ? 'offline' : (navigator as any).connection?.effectiveType === '2g' ? 'slow' : 'fast')
+    : 'fast';
+
+  return {
+    currentPage,
+    currentStep: extra?.currentStep,
+    portfolioData: portfolio || undefined,
+    templateId: portfolio?.templateId,
+    userId: profile.id,
+    sessionId,
+    sessionStart: new Date(sessionStart).toISOString(),
+    sessionDuration,
+    actionsInSession,
+    device,
+    viewport: typeof window !== 'undefined' ? { width: window.innerWidth, height: window.innerHeight } : { width: 1920, height: 1080 },
+    connection,
+    prefersReducedMotion: typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    prefersDarkMode: typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
+    timeOfDay,
+    dayOfWeek: now.getDay(),
+    isWeekend: [0, 6].includes(now.getDay()),
+    isNewUser,
+    isReturningUser,
+    daysSinceLastVisit,
+    profileCompleteness: calculatePortfolioCompleteness(portfolio),
+    ...extra,
+  };
 }

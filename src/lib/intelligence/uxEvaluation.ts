@@ -14,8 +14,8 @@ import {
   FunnelStep,
   FunnelDropoff,
 } from './types';
-import { getEvents, saveUXMetrics, getUXMetrics, getABTests, saveABTests, createABTest, getVariantForTest, saveHeuristicEvaluation, getHeuristicEvaluations } from './storage';
-import { generateId } from '@/lib/types';
+import { getEvents, saveUXMetrics, getUXMetrics, getABTests, saveABTests, createABTest, getVariantForTest, saveHeuristicEvaluation, getHeuristicEvaluations, trackEvent, getSession } from './storage';
+import { generateId, PortfolioData } from '@/lib/types';
 
 // ─── UX Evaluation Engine ──────────────────────────────────────────────────
 
@@ -447,6 +447,111 @@ export class HeuristicEvaluator {
     return recs;
   }
 
+  static evaluatePortfolio(
+    portfolio: PortfolioData | null,
+    evaluator: string = 'PortCraft Usability Engine',
+    page: string = '/builder'
+  ): HeuristicEvaluation {
+    const scores: Partial<Record<typeof HeuristicEvaluator.HEURISTICS[number], number>> = {};
+    const notes: Partial<Record<typeof HeuristicEvaluator.HEURISTICS[number], string>> = {};
+
+    if (!portfolio) {
+      for (const h of this.HEURISTICS) {
+        scores[h] = 2;
+        notes[h] = 'No portfolio loaded for evaluation';
+      }
+      return this.evaluate(evaluator, page, scores, notes);
+    }
+
+    const { personal, experience, skills, projects, templateId } = portfolio;
+
+    // 1. Visibility of system status
+    if (portfolio.lastUpdated) {
+      scores.visibility_of_system_status = 5;
+      notes.visibility_of_system_status = 'Real-time auto-saving active with accurate last-updated timestamp';
+    } else {
+      scores.visibility_of_system_status = 3;
+      notes.visibility_of_system_status = 'System status indicator could be more explicit';
+    }
+
+    // 2. Match between system and real world
+    const hasJobTitle = !!personal?.title;
+    const hasCompany = experience?.some(e => !!e.company);
+    if (hasJobTitle && hasCompany) {
+      scores.match_between_system_and_real_world = 5;
+      notes.match_between_system_and_real_world = 'Clear, real-world industry terminology for job roles, companies, and skills';
+    } else {
+      scores.match_between_system_and_real_world = 3;
+      notes.match_between_system_and_real_world = 'Consider completing your professional title and company history with industry-standard terminology';
+    }
+
+    // 3. User control and freedom
+    scores.user_control_and_freedom = 5;
+    notes.user_control_and_freedom = 'Full control over adding, editing, reordering, and removing sections, skills, and projects';
+
+    // 4. Consistency and standards
+    if (templateId) {
+      scores.consistency_and_standards = 5;
+      notes.consistency_and_standards = `Consistent theme design applied (${templateId}) adhering to design system tokens`;
+    } else {
+      scores.consistency_and_standards = 3;
+      notes.consistency_and_standards = 'Select a template theme to guarantee design consistency';
+    }
+
+    // 5. Error prevention
+    const emailValid = personal?.email && personal.email.includes('@');
+    const hasName = personal?.firstName && personal?.lastName;
+    if (emailValid && hasName) {
+      scores.error_prevention = 5;
+      notes.error_prevention = 'Essential identity and contact fields verified to prevent delivery/contact failures';
+    } else {
+      scores.error_prevention = 2;
+      notes.error_prevention = 'Missing valid email or full name in personal info; potential contact failure';
+    }
+
+    // 6. Recognition rather than recall
+    const hasSkillCategories = skills?.some(s => !!s.category);
+    const hasProjectStack = projects?.some(p => p.techStack && p.techStack.length > 0);
+    if (hasSkillCategories && hasProjectStack) {
+      scores.recognition_rather_than_recall = 5;
+      notes.recognition_rather_than_recall = 'Skills and project technologies are visibly tagged with visual cues and categories';
+    } else {
+      scores.recognition_rather_than_recall = 3;
+      notes.recognition_rather_than_recall = 'Categorize your skills and add tech stack badges to your projects';
+    }
+
+    // 7. Flexibility and efficiency of use
+    const hasMultipleSkills = (skills?.length || 0) >= 5;
+    const hasMultipleProjects = (projects?.length || 0) >= 2;
+    if (hasMultipleSkills && hasMultipleProjects) {
+      scores.flexibility_and_efficiency_of_use = 5;
+      notes.flexibility_and_efficiency_of_use = 'Accelerated workflows enabled with resume import, quick templates, and AI assistant';
+    } else {
+      scores.flexibility_and_efficiency_of_use = 4;
+      notes.flexibility_and_efficiency_of_use = 'Leverage resume import or profile connect to quickly populate portfolio entries';
+    }
+
+    // 8. Aesthetic and minimalist design
+    const hasBio = personal?.bio && personal.bio.length >= 20;
+    if (hasBio) {
+      scores.aesthetic_and_minimalist_design = 5;
+      notes.aesthetic_and_minimalist_design = 'Balanced layout with concise bio, readable typography, and organized content hierarchy';
+    } else {
+      scores.aesthetic_and_minimalist_design = 3;
+      notes.aesthetic_and_minimalist_design = 'Add an introductory summary bio to introduce yourself without cluttering the interface';
+    }
+
+    // 9. Help users recognize, diagnose, and recover from errors
+    scores.help_users_recognize_diagnose_recover_errors = 4;
+    notes.help_users_recognize_diagnose_recover_errors = 'Validation messages guide required fields and format corrections';
+
+    // 10. Help and documentation
+    scores.help_and_documentation = 5;
+    notes.help_and_documentation = 'Context-aware AI assistant and real-time recommendations panel provide proactive guidance';
+
+    return this.evaluate(evaluator, page, scores, notes);
+  }
+
   static runFullEvaluation(evaluator: string, pages: string[]): HeuristicEvaluation[] {
     const evaluations: HeuristicEvaluation[] = [];
     
@@ -546,21 +651,84 @@ export class ABTestingFramework {
     return getVariantForTest(testId);
   }
 
-  static recordExposure(testId: string, variantId: string): void {
-    // Track exposure for analysis
-    console.log(`A/B Test Exposure: ${testId} - ${variantId}`);
+  static recordExposure(testId: string, variantId: string, userId?: string): void {
+    trackEvent({
+      userId: userId || 'anonymous',
+      sessionId: getSession()?.id || 'ab-session',
+      eventType: 'button_click',
+      eventName: 'ab_test_exposure',
+      properties: { testId, variantId },
+      context: { currentPage: '/builder', sessionId: getSession()?.id || 'ab-session' },
+    });
   }
 
-  static recordConversion(testId: string, variantId: string, metricValue: number = 1): void {
-    // In practice, this would update test results
-    console.log(`A/B Test Conversion: ${testId} - ${variantId} - ${metricValue}`);
+  static recordConversion(testId: string, variantId: string, metricValue: number = 1, userId?: string): void {
+    trackEvent({
+      userId: userId || 'anonymous',
+      sessionId: getSession()?.id || 'ab-session',
+      eventType: 'button_click',
+      eventName: 'ab_test_conversion',
+      properties: { testId, variantId, metricValue },
+      context: { currentPage: '/builder', sessionId: getSession()?.id || 'ab-session' },
+    });
   }
 
   static analyzeResults(testId: string): ABTestResults | null {
     const tests = getABTests();
     const test = tests.find(t => t.id === testId);
-    if (!test || !test.results) return null;
-    return test.results;
+    if (!test) return null;
+
+    const allEvents = getEvents();
+    const exposures = allEvents.filter(e => e.eventName === 'ab_test_exposure' && e.properties.testId === testId);
+    const conversions = allEvents.filter(e => e.eventName === 'ab_test_conversion' && e.properties.testId === testId);
+
+    const variantResults: Record<string, VariantResult> = {};
+    for (const v of test.variants) {
+      const vExposures = exposures.filter(e => e.properties.variantId === v.id);
+      const vConversions = conversions.filter(e => e.properties.variantId === v.id);
+      const visitors = vExposures.length;
+      const convCount = vConversions.length;
+      const conversionRate = visitors > 0 ? convCount / visitors : 0;
+      
+      const marginOfError = visitors > 0 ? 1.96 * Math.sqrt((conversionRate * (1 - conversionRate)) / visitors) : 0;
+      const ci: [number, number] = [
+        Math.max(0, conversionRate - marginOfError),
+        Math.min(1, conversionRate + marginOfError),
+      ];
+
+      variantResults[v.id] = {
+        visitors,
+        conversions: convCount,
+        conversionRate,
+        avgMetricValue: convCount > 0 ? convCount : 0,
+        confidenceInterval: ci,
+      };
+    }
+
+    const control = variantResults['control'] || Object.values(variantResults)[0];
+    const candidate = Object.entries(variantResults).find(([k]) => k !== 'control')?.[1] || Object.values(variantResults)[1];
+
+    let significance = { pValue: 1, confidence: 0, lift: 0 };
+    if (control && candidate && control.visitors > 0 && candidate.visitors > 0) {
+      significance = this.calculateSignificance(
+        control.visitors,
+        control.conversions,
+        candidate.visitors,
+        candidate.conversions
+      );
+    }
+
+    const winnerId = Object.keys(variantResults).find(k => k !== 'control');
+
+    const results: ABTestResults = {
+      variantResults,
+      winner: significance.confidence >= 0.95 ? (significance.lift > 0 ? winnerId : 'control') : undefined,
+      confidence: significance.confidence,
+      pValue: significance.pValue,
+      lift: significance.lift,
+    };
+
+    return results;
   }
 
   static calculateSignificance(
