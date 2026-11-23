@@ -20,7 +20,7 @@ import ChatWidget from '@/components/ai/ChatWidget';
 import IntelligentAssistantWidget from '@/components/intelligence/IntelligentAssistantWidget';
 import RecommendationsPanel from '@/components/intelligence/RecommendationsPanel';
 import { UserContext } from '@/lib/intelligence/types';
-import { initializeBehaviorTracking } from '@/lib/intelligence/behaviorTracker';
+
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -38,10 +38,7 @@ export default function PreviewPage() {
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [userContext, setUserContext] = useState<UserContext | null>(null);
 
-  // Initialize behavior tracking
-  useEffect(() => {
-    initializeBehaviorTracking();
-  }, []);
+  
 
   useEffect(() => {
     setData(loadPortfolio());

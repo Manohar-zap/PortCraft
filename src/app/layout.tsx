@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
+import { initializeBehaviorTracking } from '@/lib/intelligence/behaviorTracker';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -26,6 +27,11 @@ export const metadata: Metadata = {
     type: 'website',
   },
 };
+
+// Initialize behavior tracking globally on client side
+if (typeof window !== 'undefined') {
+  initializeBehaviorTracking();
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

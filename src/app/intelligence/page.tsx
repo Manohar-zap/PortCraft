@@ -14,7 +14,7 @@ import {
 import { loadPortfolio } from '@/lib/storage';
 import { PortfolioData } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
-import { initializeBehaviorTracking, getBehaviorTracker } from '@/lib/intelligence/behaviorTracker';
+import { getBehaviorTracker } from '@/lib/intelligence/behaviorTracker';
 import { createRecommendationEngine } from '@/lib/intelligence/recommendationEngine';
 import { createIntelligentAssistant, QUICK_ACTIONS } from '@/lib/intelligence/intelligentAssistant';
 import { createUXEvaluationEngine, ABTestingFramework, generateDashboardMetrics, HeuristicEvaluator } from '@/lib/intelligence/uxEvaluation';
@@ -81,7 +81,6 @@ export default function IntelligencePage() {
   const privacy = usePrivacy();
 
   useEffect(() => {
-    initializeBehaviorTracking();
     setData(loadPortfolio());
     ABTestingFramework.initializeTests();
   }, []);
