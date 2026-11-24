@@ -1,15 +1,7 @@
 import type { NextRequest } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { generateGeminiContent, hasGeminiConfigured } from '@/lib/ai/geminiClient';
 import { parseLinkedInText } from '@/lib/integrations/linkedin/parser';
 import { generateId } from '@/lib/types';
-
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-
-function getClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
-}
 
 export async function POST(request: NextRequest) {
   let body: unknown;
@@ -27,8 +19,7 @@ export async function POST(request: NextRequest) {
   const cleanText = text.substring(0, 25000);
 
   // Try Gemini AI if available
-  const client = getClient();
-  if (client) {
+  if (hasGeminiConfigured()) {
     try {
       const prompt = `You are a resume and LinkedIn data parser. Extract Education and Skills from the following LinkedIn profile text or export into structured JSON:
 
@@ -60,14 +51,11 @@ REQUIRED JSON OUTPUT FORMAT:
 Only extract information that is present in the text. Do not invent universities or skills.
 Return ONLY valid JSON.`;
 
-      const result = await client.models.generateContent({
-        model: MODEL,
+      const result = await generateGeminiContent({
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        config: {
-          temperature: 0.2,
-          maxOutputTokens: 2500,
-          responseMimeType: 'application/json',
-        },
+        temperature: 0.2,
+        maxOutputTokens: 2500,
+        responseMimeType: 'application/json',
       });
 
       const responseText = result.text;

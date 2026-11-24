@@ -1,18 +1,9 @@
 import type { NextRequest } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-
-function getClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
-}
+import { generateGeminiContent, hasGeminiConfigured } from '@/lib/ai/geminiClient';
 
 export async function POST(request: NextRequest) {
-  const client = getClient();
-  if (!client) {
-    return Response.json({ error: 'AI features not configured' }, { status: 503 });
+  if (!hasGeminiConfigured()) {
+    return Response.json({ error: 'AI features not configured. Add GEMINI_API_KEY.' }, { status: 503 });
   }
 
   let body: unknown;
@@ -41,10 +32,11 @@ Return JSON:
 Base all analysis ONLY on what is provided in the profile. Do not invent information.`;
 
   try {
-    const result = await client.models.generateContent({
-      model: MODEL,
+    const result = await generateGeminiContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0.5, maxOutputTokens: 1000, responseMimeType: 'application/json' },
+      temperature: 0.5,
+      maxOutputTokens: 1000,
+      responseMimeType: 'application/json',
     });
     const text = result.text;
     if (!text) return Response.json({ error: 'Empty response' }, { status: 502 });

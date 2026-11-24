@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
-import { GoogleGenAI } from '@google/genai';
+import { generateGeminiContent, hasGeminiConfigured, getGeminiKeys } from '@/lib/ai/geminiClient';
 import { parseResumeText } from '@/lib/resumeParser';
 
 export const maxDuration = 60;
@@ -133,12 +133,9 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   }
 
   // Tier 2: Gemini multimodal vision for scanned image-only PDFs
-  if ((!text || text.length < 50) && process.env.GEMINI_API_KEY) {
+  if ((!text || text.length < 50) && hasGeminiConfigured()) {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-      const result = await ai.models.generateContent({
-        model,
+      const result = await generateGeminiContent({
         contents: [
           {
             role: 'user',
@@ -171,8 +168,6 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
  */
 async function parseResumeWithGemini(text: string, apiKey: string) {
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const prompt = `You are a precision resume parsing engine. Parse the following resume text into structured JSON.
 
 CRITICAL RULES:
@@ -260,13 +255,11 @@ REQUIRED JSON OUTPUT FORMAT:
 
 Return ONLY valid JSON.`;
 
-    const result = await ai.models.generateContent({
-      model,
+    const result = await generateGeminiContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        temperature: 0.1,
-        responseMimeType: 'application/json',
-      },
+      temperature: 0.1,
+      responseMimeType: 'application/json',
+      keyOverride: apiKey,
     });
 
     const parsed = JSON.parse(result.text || '{}');
@@ -442,13 +435,10 @@ export async function POST(request: NextRequest) {
       let extractedImageText = '';
 
       // If Gemini API is configured, use high-accuracy multimodal vision extraction
-      if (process.env.GEMINI_API_KEY) {
+      if (hasGeminiConfigured()) {
         try {
-          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-          const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
           const mimeType = file.type && file.type.startsWith('image/') ? file.type : 'image/png';
-          const result = await ai.models.generateContent({
-            model,
+          const result = await generateGeminiContent({
             contents: [
               {
                 role: 'user',
@@ -507,7 +497,7 @@ export async function POST(request: NextRequest) {
     const apiKey =
       (request.headers.get('x-gemini-api-key') || '').trim() ||
       ((formData.get('apiKey') as string) || '').trim() ||
-      process.env.GEMINI_API_KEY ||
+      (hasGeminiConfigured() ? getGeminiKeys()[0] : '') ||
       '';
 
     let finalData: any = null;

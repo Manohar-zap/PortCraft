@@ -1,18 +1,10 @@
 import type { NextRequest } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { generateGeminiContent, hasGeminiConfigured } from '@/lib/ai/geminiClient';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
 const MAX_INPUT_LENGTH = 20000;
 
-function getClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  return new GoogleGenAI({ apiKey: key });
-}
-
 export async function POST(request: NextRequest) {
-  const client = getClient();
-  if (!client) {
+  if (!hasGeminiConfigured()) {
     return Response.json({ error: 'AI features are not configured. Add GEMINI_API_KEY to environment variables.' }, { status: 503 });
   }
 
@@ -69,14 +61,11 @@ IMPORTANT RULES:
 Return ONLY valid JSON, no markdown, no explanation.`;
 
   try {
-    const result = await client.models.generateContent({
-      model: MODEL,
+    const result = await generateGeminiContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        temperature: 0.7,
-        maxOutputTokens: 2000,
-        responseMimeType: 'application/json',
-      },
+      temperature: 0.7,
+      maxOutputTokens: 2000,
+      responseMimeType: 'application/json',
     });
 
     const text = result.text;
@@ -90,7 +79,7 @@ Return ONLY valid JSON, no markdown, no explanation.`;
       return Response.json({ error: 'AI returned invalid JSON' }, { status: 502 });
     }
 
-    return Response.json({ success: true, content: parsed, model: MODEL });
+    return Response.json({ success: true, content: parsed, model: result.model });
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'AI generation failed';
     // Don't expose internal error details
