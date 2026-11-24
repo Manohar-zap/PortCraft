@@ -165,6 +165,190 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
   return text;
 }
 
+/**
+ * AI-assisted structured resume extraction when Gemini API key is available.
+ * Accurately discerns between candidate names and role titles (e.g. "Data Science Student").
+ */
+async function parseResumeWithGemini(text: string, apiKey: string) {
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const prompt = `You are a precision resume parsing engine. Parse the following resume text into structured JSON.
+
+CRITICAL RULES:
+1. Extract the candidate's real legal personal name (First Name and Last Name). DO NOT mistake job titles or student status (like "Data Science Student", "Software Engineer") as the person's name!
+2. Extract only factual data present in the text. DO NOT fabricate companies, dates, degrees, or skills.
+3. If dates or grades are not mentioned, use empty string "".
+4. All extracted skills must have level 0 unless explicitly rated.
+
+RESUME TEXT:
+${text.substring(0, 30000)}
+
+REQUIRED JSON OUTPUT FORMAT:
+{
+  "personal": {
+    "firstName": "First name of candidate",
+    "lastName": "Last name of candidate",
+    "title": "Professional title or role (e.g. Data Science Student, Full Stack Developer)",
+    "email": "email or empty string",
+    "phone": "phone or empty string",
+    "location": "location or empty string",
+    "website": "portfolio or website URL or empty string",
+    "linkedin": "LinkedIn URL or empty string",
+    "github": "GitHub URL or empty string",
+    "twitter": "",
+    "bio": "Bio or summary paragraph or empty string",
+    "avatar": ""
+  },
+  "education": [
+    {
+      "institution": "University / College name",
+      "degree": "Degree name",
+      "field": "Field of study",
+      "startYear": "Start year",
+      "endYear": "End year or Present",
+      "gpa": "GPA or empty string",
+      "description": ""
+    }
+  ],
+  "experience": [
+    {
+      "company": "Company / Organization name",
+      "position": "Job title / role",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "current": false,
+      "location": "Location",
+      "description": "Role overview",
+      "highlights": ["Bullet point 1", "Bullet point 2"]
+    }
+  ],
+  "skills": [
+    {
+      "name": "Skill name",
+      "category": "Frontend|Backend|Database|DevOps|Mobile|Testing|Languages|Tools|Data & AI|General",
+      "level": 0
+    }
+  ],
+  "projects": [
+    {
+      "title": "Project name",
+      "description": "Project overview",
+      "techStack": ["React", "Python"],
+      "liveUrl": "",
+      "githubUrl": "",
+      "featured": false
+    }
+  ],
+  "achievements": [
+    {
+      "title": "Achievement or award name",
+      "issuer": "Issuing organization or empty string",
+      "date": "Year or date",
+      "description": "Description"
+    }
+  ],
+  "certifications": [
+    {
+      "title": "Certification name",
+      "issuer": "Issuer",
+      "date": "Date",
+      "url": ""
+    }
+  ]
+}
+
+Return ONLY valid JSON.`;
+
+    const result = await ai.models.generateContent({
+      model,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.1,
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsed = JSON.parse(result.text || '{}');
+    if (parsed?.personal?.firstName) {
+      const { generateId } = await import('@/lib/types');
+      return {
+        personal: {
+          firstName: parsed.personal.firstName || '',
+          lastName: parsed.personal.lastName || '',
+          title: parsed.personal.title || '',
+          email: parsed.personal.email || '',
+          phone: parsed.personal.phone || '',
+          location: parsed.personal.location || '',
+          website: parsed.personal.website || '',
+          linkedin: parsed.personal.linkedin || '',
+          github: parsed.personal.github || '',
+          twitter: parsed.personal.twitter || '',
+          bio: parsed.personal.bio || '',
+          avatar: '',
+        },
+        education: (parsed.education || []).map((e: any) => ({
+          id: generateId(),
+          institution: e.institution || '',
+          degree: e.degree || '',
+          field: e.field || '',
+          startYear: e.startYear || '',
+          endYear: e.endYear || '',
+          gpa: e.gpa || '',
+          description: e.description || '',
+        })),
+        experience: (parsed.experience || []).map((e: any) => ({
+          id: generateId(),
+          company: e.company || '',
+          position: e.position || '',
+          startDate: e.startDate || '',
+          endDate: e.endDate || '',
+          current: Boolean(e.current),
+          location: e.location || '',
+          description: e.description || '',
+          highlights: Array.isArray(e.highlights) ? e.highlights : [],
+        })),
+        skills: (parsed.skills || []).map((s: any) => ({
+          id: generateId(),
+          name: s.name || '',
+          category: s.category || 'General',
+          level: typeof s.level === 'number' ? Math.max(0, Math.min(5, s.level)) : 0,
+        })),
+        projects: (parsed.projects || []).map((p: any) => ({
+          id: generateId(),
+          title: p.title || '',
+          description: p.description || '',
+          techStack: Array.isArray(p.techStack) ? p.techStack : [],
+          liveUrl: p.liveUrl || '',
+          githubUrl: p.githubUrl || '',
+          imageUrl: '',
+          featured: Boolean(p.featured),
+        })),
+        achievements: (parsed.achievements || []).map((a: any) => ({
+          id: generateId(),
+          title: a.title || '',
+          issuer: a.issuer || '',
+          date: a.date || '',
+          description: a.description || '',
+          url: '',
+        })),
+        certifications: (parsed.certifications || []).map((c: any) => ({
+          id: generateId(),
+          title: c.title || '',
+          issuer: c.issuer || '',
+          date: c.date || '',
+          url: c.url || '',
+        })),
+        rawText: text,
+        confidence: 95,
+      };
+    }
+  } catch (err) {
+    console.warn('Gemini AI resume parsing error:', err);
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -319,19 +503,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Parse the extracted text using the shared parser
-    const parseResult = parseResumeText(text);
+    // Determine if Gemini API key is available (from env, header, or formData)
+    const apiKey =
+      (request.headers.get('x-gemini-api-key') || '').trim() ||
+      ((formData.get('apiKey') as string) || '').trim() ||
+      process.env.GEMINI_API_KEY ||
+      '';
 
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { success: false, error: parseResult.error || 'Failed to parse resume content' },
-        { status: 400 }
-      );
+    let finalData: any = null;
+
+    if (apiKey) {
+      finalData = await parseResumeWithGemini(text, apiKey);
+    }
+
+    if (!finalData) {
+      const parseResult = parseResumeText(text);
+      if (!parseResult.success) {
+        return NextResponse.json(
+          { success: false, error: parseResult.error || 'Failed to parse resume content' },
+          { status: 400 }
+        );
+      }
+      finalData = parseResult.data;
     }
 
     return NextResponse.json({
       success: true,
-      data: parseResult.data,
+      data: finalData,
     });
   } catch (error: unknown) {
     console.error('Resume parsing error:', error);

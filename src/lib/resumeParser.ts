@@ -194,49 +194,84 @@ function parsePersonalInfo(text: string, fullText: string): Partial<PersonalInfo
   );
   if (personalUrls.length > 0) personal.website = personalUrls[0];
 
-  // Try to extract name from first non-empty lines
-  const nonBlankLines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
-  const skipWords = /^(resume|curriculum vitae|cv|portfolio|personal profile|profile|biodata|bio|contact)$/i;
+  // Title / role / field keywords that must NEVER be accepted as a candidate's personal name
+  const TITLE_OR_FIELD_KEYWORDS = /\b(student|engineer|developer|designer|analyst|scientist|manager|intern|architect|consultant|specialist|graduate|candidate|programmer|researcher|enthusiast|fellow|assistant|professor|director|lead|founder|co-founder|head|vp|officer|executive|professional|freelancer|instructor|coordinator|administrator|science|engineering|technology|fullstack|full-stack|frontend|backend|devops|software|computing|web|mobile|cloud|ai|ml|data|undergraduate|postgraduate|fresher|machine|learning|deep|database|systems|network|security|cybersecurity|agile|scrum)\b/i;
 
-  for (let i = 0; i < Math.min(8, nonBlankLines.length); i++) {
+  const nonBlankLines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
+  const skipWords = /^(resume|curriculum vitae|cv|portfolio|personal profile|profile|biodata|bio|contact|contact information)$/i;
+
+  for (let i = 0; i < Math.min(10, nonBlankLines.length); i++) {
     const rawLine = nonBlankLines[i];
+    // Stop scanning for name once we cross into a standard resume section header (e.g. SKILLS, EDUCATION)
+    if (matchSectionHeader(rawLine)) {
+      break;
+    }
     const line = rawLine.replace(/^[#*_\-\s►•·|]+/, '').replace(/[#*_\-\s►•·|]+$/, '').trim();
 
     if (!line || skipWords.test(line)) continue;
 
-    // Check if line contains email or phone
-    const hasContact = EMAIL_REGEX.test(line) || PHONE_REGEX.test(line) || URL_REGEX.test(line);
-    if (hasContact) {
-      // If line is e.g. "Jane Doe | jane@example.com | 555-0199"
-      const firstSegment = line.split(/[|•·,]/)[0].trim();
-      const segMatch = firstSegment.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
-      if (segMatch && !/^(email|phone|tel|address|location|github|linkedin|http)/i.test(firstSegment)) {
-        const parts = segMatch[1].split(/\s+/).filter(Boolean);
+    // Split on delimiters (pipe, dash, bullet, colon, slash, parens, or comma before capitalized words)
+    const segments = line
+      .split(/\s*[-–—|•·/]\s*|\s*,\s*(?=[A-Z])|\s*[()]\s*/)
+      .map(s => s.trim().replace(/^[#*_\-\s►•·|]+/, '').replace(/[#*_\-\s►•·|]+$/, ''))
+      .filter(Boolean);
+
+    for (const seg of segments) {
+      if (EMAIL_REGEX.test(seg) || PHONE_REGEX.test(seg) || URL_REGEX.test(seg)) continue;
+
+      const isTitleMatch = TITLE_OR_FIELD_KEYWORDS.test(seg);
+      if (isTitleMatch) {
+        if (!personal.title && seg.length > 3 && seg.length < 60) {
+          personal.title = seg;
+        }
+        continue; // Strictly reject as a person's name!
+      }
+
+      // Check if this segment is a valid human name (2-4 words, letters/dashes/dots only)
+      const nameMatch = seg.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
+      if (nameMatch && !/^(education|experience|skills|projects|summary|contact|awards|certifications|languages)/i.test(seg)) {
+        const parts = nameMatch[1].split(/\s+/).filter(Boolean);
         if (parts.length >= 2 && !personal.firstName) {
-          personal.firstName = parts[0];
-          personal.lastName = parts.slice(1).join(' ');
-          break;
+          // Normalize capitalization (e.g. MANOHAR REDDY -> Manohar Reddy)
+          const normFirst = parts[0].length > 1 && parts[0] === parts[0].toUpperCase()
+            ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase()
+            : parts[0];
+          const normLast = parts.slice(1).map(w =>
+            w.length > 1 && w === w.toUpperCase()
+              ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+              : w
+          ).join(' ');
+
+          personal.firstName = normFirst;
+          personal.lastName = normLast;
         }
       }
-      continue;
     }
 
-    // Check if line contains a pipe, dash or bullet separating name and title: e.g. "Jane Doe | Full Stack Engineer"
-    const segments = line.split(/\s*[|•·]\s*/);
-    const candidateName = segments[0].trim();
-    const candidateTitle = segments[1]?.trim();
+    if (personal.firstName && personal.title) break;
+  }
 
-    const nameMatch = candidateName.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
-    if (nameMatch && !/^(education|experience|skills|projects|summary|contact)/i.test(candidateName)) {
-      const parts = nameMatch[1].split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        personal.firstName = parts[0];
-        personal.lastName = parts.slice(1).join(' ');
-        if (candidateTitle && !personal.title && candidateTitle.length > 3 && candidateTitle.length < 60) {
-          personal.title = candidateTitle;
-        }
-        break;
+  // Fallback 1: Infer name from LinkedIn handle if name was missed or blocked by graphics
+  if (!personal.firstName && personal.linkedin) {
+    const handleMatch = personal.linkedin.match(/linkedin\.com\/in\/([a-zA-Z0-9_-]+)/i);
+    if (handleMatch) {
+      const tokens = handleMatch[1]
+        .split(/[-_]+/)
+        .filter(t => !/^(tech|dev|developer|engineer|code|codes|official|profile|in|the|\d+)$/i.test(t));
+      if (tokens.length >= 2) {
+        personal.firstName = tokens[0].charAt(0).toUpperCase() + tokens[0].slice(1).toLowerCase();
+        personal.lastName = tokens.slice(1).map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' ');
       }
+    }
+  }
+
+  // Fallback 2: Infer name from email handle (e.g. manohar.reddy@gmail.com)
+  if (!personal.firstName && personal.email) {
+    const handle = personal.email.split('@')[0];
+    const tokens = handle.split(/[._-]+/).filter(t => !/^\d+$/.test(t) && t.length > 1);
+    if (tokens.length >= 2 && !TITLE_OR_FIELD_KEYWORDS.test(tokens[0]) && !TITLE_OR_FIELD_KEYWORDS.test(tokens[1])) {
+      personal.firstName = tokens[0].charAt(0).toUpperCase() + tokens[0].slice(1).toLowerCase();
+      personal.lastName = tokens.slice(1).map(t => t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()).join(' ');
     }
   }
 
@@ -849,9 +884,13 @@ export async function readFileAsText(file: File): Promise<string> {
 }
 
 // For PDF/DOCX, we'll use the API route (server-side parsing)
-export async function parseResumeFile(file: File): Promise<ResumeParseResult> {
+export async function parseResumeFile(file: File, apiKey?: string): Promise<ResumeParseResult> {
   const formData = new FormData();
   formData.append('file', file);
+  const key = apiKey || (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : '');
+  if (key) {
+    formData.append('apiKey', key);
+  }
 
   try {
     const response = await fetch('/api/resume/parse', {
