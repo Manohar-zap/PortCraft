@@ -196,11 +196,20 @@ function parsePersonalInfo(text: string, fullText: string): Partial<PersonalInfo
 
   // Title / role / field keywords that must NEVER be accepted as a candidate's personal name
   const TITLE_OR_FIELD_KEYWORDS = /\b(student|engineer|developer|designer|analyst|scientist|manager|intern|architect|consultant|specialist|graduate|candidate|programmer|researcher|enthusiast|fellow|assistant|professor|director|lead|founder|co-founder|head|vp|officer|executive|professional|freelancer|instructor|coordinator|administrator|science|engineering|technology|fullstack|full-stack|frontend|backend|devops|software|computing|web|mobile|cloud|ai|ml|data|undergraduate|postgraduate|fresher|machine|learning|deep|database|systems|network|security|cybersecurity|agile|scrum)\b/i;
+  const PRONOUN_REGEX = /\b(he|him|his|she|her|hers|they|them|their|theirs|pronouns|mr|ms|mrs|dr|prof)\b/i;
+  const CONTACT_PREFIX_REGEX = /\b(phone|mobile|cell|tel|email|mail|contact|address|location|city|country|state|zip|pin|github|linkedin|portfolio|website|link|url|fax)\b/i;
 
   const nonBlankLines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
   const skipWords = /^(resume|curriculum vitae|cv|portfolio|personal profile|profile|biodata|bio|contact|contact information)$/i;
 
-  for (let i = 0; i < Math.min(10, nonBlankLines.length); i++) {
+  interface NameCandidate {
+    firstName: string;
+    lastName: string;
+    score: number;
+  }
+  const nameCandidates: NameCandidate[] = [];
+
+  for (let i = 0; i < Math.min(12, nonBlankLines.length); i++) {
     const rawLine = nonBlankLines[i];
     // Stop scanning for name once we cross into a standard resume section header (e.g. SKILLS, EDUCATION)
     if (matchSectionHeader(rawLine)) {
@@ -227,28 +236,67 @@ function parsePersonalInfo(text: string, fullText: string): Partial<PersonalInfo
         continue; // Strictly reject as a person's name!
       }
 
-      // Check if this segment is a valid human name (2-4 words, letters/dashes/dots only)
-      const nameMatch = seg.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
-      if (nameMatch && !/^(education|experience|skills|projects|summary|contact|awards|certifications|languages)/i.test(seg)) {
-        const parts = nameMatch[1].split(/\s+/).filter(Boolean);
-        if (parts.length >= 2 && !personal.firstName) {
-          // Normalize capitalization (e.g. MANOHAR REDDY -> Manohar Reddy)
-          const normFirst = parts[0].length > 1 && parts[0] === parts[0].toUpperCase()
-            ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase()
-            : parts[0];
-          const normLast = parts.slice(1).map(w =>
-            w.length > 1 && w === w.toUpperCase()
-              ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
-              : w
-          ).join(' ');
+      if (PRONOUN_REGEX.test(seg) || CONTACT_PREFIX_REGEX.test(seg)) continue;
 
-          personal.firstName = normFirst;
-          personal.lastName = normLast;
+      const words = seg.split(/\s+/).filter(Boolean);
+      if (words.length < 2 || words.length > 4) continue;
+
+      let candFirst = '';
+      let candLast = '';
+
+      if (words[0].replace(/[^a-zA-Z]/g, '').length < 2) {
+        if (words.length >= 3 && words[1].replace(/[^a-zA-Z]/g, '').length >= 3) {
+          candFirst = words[0] + (words[0].endsWith('.') ? '' : '.') + ' ' + words[1];
+          candLast = words.slice(2).join(' ');
+        } else {
+          continue; // Discard single letter prefix like "P He"
+        }
+      } else {
+        candFirst = words[0];
+        candLast = words.slice(1).join(' ');
+      }
+
+      if (candLast.replace(/[^a-zA-Z]/g, '').length < 2) continue;
+      if (PRONOUN_REGEX.test(candLast) || PRONOUN_REGEX.test(candFirst)) continue;
+      if (CONTACT_PREFIX_REGEX.test(candLast) || CONTACT_PREFIX_REGEX.test(candFirst)) continue;
+      if (TITLE_OR_FIELD_KEYWORDS.test(candLast) || TITLE_OR_FIELD_KEYWORDS.test(candFirst)) continue;
+
+      let score = 50 - i * 3;
+      if (words.every(w => w.replace(/[^a-zA-Z]/g, '').length >= 3)) score += 25;
+
+      if (personal.linkedin) {
+        const lowerHandle = personal.linkedin.toLowerCase();
+        for (const w of words) {
+          const cw = w.toLowerCase().replace(/[^a-z]/g, '');
+          if (cw.length >= 3 && lowerHandle.includes(cw)) score += 60;
         }
       }
-    }
 
-    if (personal.firstName && personal.title) break;
+      if (personal.email) {
+        const lowerEmail = personal.email.toLowerCase();
+        for (const w of words) {
+          const cw = w.toLowerCase().replace(/[^a-z]/g, '');
+          if (cw.length >= 3 && lowerEmail.includes(cw)) score += 40;
+        }
+      }
+
+      // Normalize capitalization (e.g. MANOHAR REDDY -> Manohar Reddy)
+      const normFirst = candFirst.split(' ').map(w =>
+        w.length > 1 && w === w.toUpperCase() ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w
+      ).join(' ');
+      const normLast = candLast.split(' ').map(w =>
+        w.length > 1 && w === w.toUpperCase() ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w
+      ).join(' ');
+
+      nameCandidates.push({ firstName: normFirst, lastName: normLast, score });
+    }
+  }
+
+  // Pick highest scoring candidate name
+  if (nameCandidates.length > 0) {
+    nameCandidates.sort((a, b) => b.score - a.score);
+    personal.firstName = nameCandidates[0].firstName;
+    personal.lastName = nameCandidates[0].lastName;
   }
 
   // Fallback 1: Infer name from LinkedIn handle if name was missed or blocked by graphics

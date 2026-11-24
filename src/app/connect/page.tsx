@@ -49,7 +49,24 @@ export default function ConnectPage() {
 
   useEffect(() => {
     const session = loadImportSession();
-    setPlatformStates(session);
+    const portfolio = loadPortfolio();
+    if (portfolio.platformProfiles && Object.keys(portfolio.platformProfiles).length > 0) {
+      setImportedProfiles(portfolio.platformProfiles);
+      const initialStates = { ...session };
+      for (const [key, val] of Object.entries(portfolio.platformProfiles)) {
+        if (val && (!initialStates[key] || initialStates[key].status === 'not_connected')) {
+          initialStates[key] = {
+            username: (val as { username?: string; login?: string }).username || (val as { username?: string; login?: string }).login || '',
+            status: 'imported',
+            data: val,
+            expanded: false,
+          };
+        }
+      }
+      setPlatformStates(initialStates);
+    } else {
+      setPlatformStates(session);
+    }
   }, []);
 
   const handleLinkedInApply = (extracted: { education: Education[]; skills: Skill[]; mode: 'append' | 'replace' }) => {

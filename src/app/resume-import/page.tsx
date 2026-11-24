@@ -28,7 +28,7 @@ const LinkedinIcon = ({ size = 16, className = '', ...props }: React.SVGProps<SV
 import { PortfolioData, Education, Experience, Skill, Project, Achievement, PersonalInfo, generateId, DEFAULT_THEME } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
 import { parseResumeFile, ParsedResumeData, parsedToPortfolioData } from '@/lib/resumeParser';
-import { savePortfolio } from '@/lib/storage';
+import { loadPortfolio, savePortfolio } from '@/lib/storage';
 
 type Step = 'upload' | 'review' | 'template' | 'complete';
 
@@ -327,10 +327,15 @@ export default function ResumeImportPage() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
+      const existing = loadPortfolio();
       const portfolioData = parsedToPortfolioData(parsedData, selectedTemplate);
       const template = getTemplate(selectedTemplate);
       const finalData = {
+        ...existing,
         ...portfolioData,
+        platformProfiles: existing.platformProfiles,
+        repositories: existing.repositories?.length ? existing.repositories : portfolioData.repositories,
+        codingStats: existing.codingStats || portfolioData.codingStats,
         theme: { ...DEFAULT_THEME, ...template.defaultTheme },
       };
       savePortfolio(finalData);
@@ -534,7 +539,22 @@ function UploadStep({
   onDrop: (e: React.DragEvent) => void;
 }) {
   const [dragActive, setDragActive] = useState(false);
+  const [apiKey, setApiKey] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : ''));
+  const [savedKeyMsg, setSavedKeyMsg] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleApiKeyChange = (val: string) => {
+    setApiKey(val);
+    if (typeof window !== 'undefined') {
+      if (val.trim()) {
+        localStorage.setItem('gemini_api_key', val.trim());
+        setSavedKeyMsg(true);
+        setTimeout(() => setSavedKeyMsg(false), 2000);
+      } else {
+        localStorage.removeItem('gemini_api_key');
+      }
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -592,6 +612,24 @@ function UploadStep({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Optional Gemini API Key for deep AI precision */}
+        <div className="mt-4 p-3.5 bg-white/[0.02] border border-white/5 rounded-xl text-left">
+          <div className="flex items-center justify-between text-xs text-white/60 mb-1.5">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Sparkles size={13} className="text-violet-400" />
+              <span>Gemini AI Key (optional — for deep AI understanding)</span>
+            </span>
+            {savedKeyMsg && <span className="text-green-400 text-[11px] font-semibold animate-pulse">✓ Saved to session</span>}
+          </div>
+          <input
+            type="password"
+            placeholder="Paste Gemini API key to enable multimodal AI precision (or leave blank to use built-in parser)..."
+            value={apiKey}
+            onChange={(e) => handleApiKeyChange(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-violet-500 font-mono"
+          />
         </div>
 
         {error && (

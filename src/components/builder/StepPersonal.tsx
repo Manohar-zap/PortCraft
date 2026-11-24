@@ -2,8 +2,9 @@
 
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, User } from 'lucide-react';
+import { Upload, User, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { PortfolioData } from '@/lib/types';
+import { aggregatePlatformData } from '@/lib/services/profileAggregator';
 
 interface Props {
   data: PortfolioData;
@@ -34,8 +35,10 @@ function Field({
 }
 
 export default function StepPersonal({ data, updateData }: Props) {
-  const { personal } = data;
+  const { personal, platformProfiles } = data;
   const fileRef = useRef<HTMLInputElement>(null);
+  const [syncingGithub, setSyncingGithub] = useState(false);
+  const [githubSyncMsg, setGithubSyncMsg] = useState<string | null>(null);
 
   const update = (field: string, value: string) =>
     updateData({ personal: { ...personal, [field]: value } });
@@ -47,6 +50,41 @@ export default function StepPersonal({ data, updateData }: Props) {
     reader.onload = (ev) => update('avatar', ev.target?.result as string);
     reader.readAsDataURL(file);
   };
+
+  const handleSyncGithub = async (usernameOverride?: string) => {
+    let target = usernameOverride || personal.github || platformProfiles?.github?.username || '';
+    if (!target) return;
+    target = target.replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '').trim();
+    if (!target) return;
+
+    setSyncingGithub(true);
+    setGithubSyncMsg(null);
+    try {
+      const res = await fetch(`/api/integrations/github?username=${encodeURIComponent(target)}`);
+      if (!res.ok) {
+        setGithubSyncMsg('Could not fetch GitHub profile');
+        return;
+      }
+      const gh = await res.json();
+      const updatedProfiles = {
+        ...(platformProfiles || {}),
+        github: gh,
+      };
+      const aggregated = aggregatePlatformData(updatedProfiles, data);
+
+      updateData({
+        ...aggregated,
+        platformProfiles: updatedProfiles,
+      });
+      setGithubSyncMsg('Profile & photo synced with GitHub ✓');
+    } catch {
+      setGithubSyncMsg('Failed to sync GitHub profile');
+    } finally {
+      setSyncingGithub(false);
+    }
+  };
+
+  const activeAvatar = personal.avatar || platformProfiles?.github?.avatarUrl;
 
   return (
     <div>
@@ -63,8 +101,8 @@ export default function StepPersonal({ data, updateData }: Props) {
               className="w-32 h-32 rounded-2xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center bg-white/[0.03] overflow-hidden cursor-pointer hover:border-violet-500/50 transition-all"
               onClick={() => fileRef.current?.click()}
             >
-              {personal.avatar ? (
-                <img src={personal.avatar} alt="Avatar" className="w-full h-full object-cover" />
+              {activeAvatar ? (
+                <img src={activeAvatar} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
                 <>
                   <User size={32} className="text-white/20 mb-2" />
@@ -74,7 +112,7 @@ export default function StepPersonal({ data, updateData }: Props) {
             </div>
             <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatar} />
           </div>
-          <div className="text-center">
+          <div className="text-center flex flex-col items-center gap-1.5">
             <button
               onClick={() => fileRef.current?.click()}
               className="flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
@@ -82,7 +120,16 @@ export default function StepPersonal({ data, updateData }: Props) {
               <Upload size={12} />
               {personal.avatar ? 'Change photo' : 'Upload photo'}
             </button>
-            <p className="text-xs text-white/25 mt-1">JPG, PNG up to 5MB</p>
+            {platformProfiles?.github?.avatarUrl && personal.avatar !== platformProfiles.github.avatarUrl && (
+              <button
+                type="button"
+                onClick={() => update('avatar', platformProfiles.github!.avatarUrl)}
+                className="text-[11px] text-green-400 hover:text-green-300 underline transition-colors"
+              >
+                Use GitHub photo
+              </button>
+            )}
+            <p className="text-xs text-white/25">JPG, PNG or GitHub avatar</p>
           </div>
         </div>
 
@@ -98,8 +145,39 @@ export default function StepPersonal({ data, updateData }: Props) {
           <Field label="Location" name="location" value={personal.location} onChange={(v) => update('location', v)} placeholder="San Francisco, CA" />
           <Field label="Website" name="website" type="url" value={personal.website} onChange={(v) => update('website', v)} placeholder="https://alexjohnson.dev" />
           <Field label="LinkedIn URL" name="linkedin" type="url" value={personal.linkedin} onChange={(v) => update('linkedin', v)} placeholder="https://linkedin.com/in/alexjohnson" />
-          <Field label="GitHub URL" name="github" type="url" value={personal.github} onChange={(v) => update('github', v)} placeholder="https://github.com/alexjohnson" />
+          
+          {/* GitHub Field with Sync option */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-white/70">GitHub URL</label>
+              {(personal.github || platformProfiles?.github?.username) && (
+                <button
+                  type="button"
+                  disabled={syncingGithub}
+                  onClick={() => handleSyncGithub()}
+                  className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw size={11} className={syncingGithub ? 'animate-spin' : ''} />
+                  {syncingGithub ? 'Syncing...' : 'Sync GitHub Info'}
+                </button>
+              )}
+            </div>
+            <input
+              type="url"
+              value={personal.github}
+              onChange={(e) => update('github', e.target.value)}
+              placeholder="https://github.com/username"
+              className="bg-white/[0.05] border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-white/25 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all"
+            />
+            {githubSyncMsg && (
+              <p className={`text-xs ${githubSyncMsg.includes('✓') ? 'text-green-400' : 'text-amber-400'}`}>
+                {githubSyncMsg}
+              </p>
+            )}
+          </div>
+
           <Field label="Twitter/X URL" name="twitter" type="url" value={personal.twitter} onChange={(v) => update('twitter', v)} placeholder="https://twitter.com/alexjohnson" />
+          
           <div className="md:col-span-2 flex flex-col gap-1.5">
             <label className="text-sm font-medium text-white/70">Professional Bio</label>
             <textarea

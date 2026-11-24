@@ -1,25 +1,98 @@
 import type { PortfolioData, PlatformProfiles, CodingStats, Repository } from '@/lib/types';
+import { DEFAULT_PORTFOLIO } from '@/lib/types';
+
+// List of common template/dummy/placeholder names that should always be replaced by verified platform profile data
+const PLACEHOLDER_NAMES = new Set([
+  'alex', 'johnson', 'alex johnson',
+  'hayden', 'smith', 'hayden smith',
+  'john', 'doe', 'john doe',
+  'data', 'science', 'science student', 'data science student',
+  'p', 'he', 'p he',
+  'jane', 'jane doe',
+  'user', 'test', 'sample', 'root',
+  'vincent', 'miles', 'marcus', 'oliver', 'elliot', 'paul', 'leo', 'elena', 'avery', 'kaelen',
+]);
+
+const PLACEHOLDER_LOCATIONS = new Set([
+  'mitre avenue, park hill',
+  'san francisco, ca',
+  'city, country',
+  'new york, ny',
+  'remote',
+]);
 
 export function aggregatePlatformData(
   platformProfiles: PlatformProfiles,
   existing: Partial<PortfolioData>
 ): Partial<PortfolioData> {
   const result: Partial<PortfolioData> = { ...existing };
+  const basePersonal = { ...(DEFAULT_PORTFOLIO.personal), ...(existing.personal || {}) };
 
-  // Personal info from GitHub if not set
+  // Personal info from GitHub
   const github = platformProfiles.github;
-  if (github && !existing.personal?.firstName) {
-    const nameParts = (github.name || github.username).split(' ');
-    result.personal = {
-      ...existing.personal!,
-      firstName: nameParts[0] || '',
-      lastName: nameParts.slice(1).join(' ') || '',
-      bio: existing.personal?.bio || github.bio || '',
-      github: existing.personal?.github || `https://github.com/${github.username}`,
-      website: existing.personal?.website || github.blog || '',
-      location: existing.personal?.location || github.location || '',
-      avatar: existing.personal?.avatar || github.avatarUrl || '',
-    };
+  if (github) {
+    const updatedPersonal = { ...basePersonal };
+
+    // 1. Avatar: Always map GitHub avatar image to profile
+    if (github.avatarUrl) {
+      updatedPersonal.avatar = github.avatarUrl;
+    }
+
+    // 2. Name: If github has a display name or valid user name
+    if (github.name && github.name.trim()) {
+      const parts = github.name.trim().split(/\s+/).filter(Boolean);
+      const ghFirst = parts[0] || '';
+      const ghLast = parts.slice(1).join(' ') || '';
+
+      const currentFirst = (updatedPersonal.firstName || '').trim().toLowerCase();
+      const currentFull = `${updatedPersonal.firstName || ''} ${updatedPersonal.lastName || ''}`.trim().toLowerCase();
+      const isPlaceholder = !currentFirst || PLACEHOLDER_NAMES.has(currentFirst) || PLACEHOLDER_NAMES.has(currentFull);
+
+      // If currently empty, placeholder, or connecting a profile with a distinct real human name
+      if (isPlaceholder || (github.name !== github.username && ghFirst.length > 1)) {
+        updatedPersonal.firstName = ghFirst;
+        updatedPersonal.lastName = ghLast;
+      }
+    } else if (!updatedPersonal.firstName && github.username) {
+      updatedPersonal.firstName = github.username;
+    }
+
+    // 3. Location: If github location is provided, replace placeholder or empty location
+    if (github.location && github.location.trim()) {
+      const currentLoc = (updatedPersonal.location || '').trim().toLowerCase();
+      const isPlaceholderLoc = !currentLoc || PLACEHOLDER_LOCATIONS.has(currentLoc) || currentLoc.includes('mitre') || currentLoc.includes('park hill');
+      if (isPlaceholderLoc || github.location.trim()) {
+        updatedPersonal.location = github.location.trim();
+      }
+    }
+
+    // 4. GitHub URL
+    if (!updatedPersonal.github || updatedPersonal.github.includes('alexjohnson') || updatedPersonal.github.includes('johndoe')) {
+      updatedPersonal.github = github.profileUrl || `https://github.com/${github.username}`;
+    }
+
+    // 5. Bio
+    if (github.bio && github.bio.trim()) {
+      if (!updatedPersonal.bio || updatedPersonal.bio.length < 5) {
+        updatedPersonal.bio = github.bio.trim();
+      }
+    }
+
+    // 6. Website
+    if (github.blog && github.blog.trim()) {
+      if (!updatedPersonal.website || updatedPersonal.website.includes('example.com') || updatedPersonal.website.includes('alexjohnson.dev')) {
+        updatedPersonal.website = github.blog.trim();
+      }
+    }
+
+    // 7. Email
+    if (github.email && github.email.trim()) {
+      if (!updatedPersonal.email || updatedPersonal.email.includes('example.com') || updatedPersonal.email.includes('haydensmith')) {
+        updatedPersonal.email = github.email.trim();
+      }
+    }
+
+    result.personal = updatedPersonal;
   }
 
   // Repositories from GitHub/GitLab

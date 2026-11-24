@@ -1,6 +1,7 @@
 'use client';
 
 import { PortfolioData, DEFAULT_PORTFOLIO } from './types';
+import { aggregatePlatformData } from './services/profileAggregator';
 
 const STORAGE_KEY = 'portcraft_portfolio';
 
@@ -9,7 +10,7 @@ const STORAGE_KEY = 'portcraft_portfolio';
  * filling in safe defaults for any missing new fields.
  */
 export function migratePortfolioData(old: Partial<PortfolioData>): PortfolioData {
-  return {
+  const merged: PortfolioData = {
     // Spread defaults first so every required field is present
     ...DEFAULT_PORTFOLIO,
     // Overlay whatever the old data had
@@ -33,6 +34,13 @@ export function migratePortfolioData(old: Partial<PortfolioData>): PortfolioData
     aiState: old.aiState ?? undefined,
     sourceRecords: old.sourceRecords ?? [],
   };
+
+  if (merged.platformProfiles && Object.keys(merged.platformProfiles).length > 0) {
+    const aggregated = aggregatePlatformData(merged.platformProfiles, merged);
+    return { ...merged, ...aggregated };
+  }
+
+  return merged;
 }
 
 export function savePortfolio(data: PortfolioData): void {
