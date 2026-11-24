@@ -8,6 +8,87 @@ import { parseResumeText } from '@/lib/resumeParser';
 export const maxDuration = 60;
 
 /**
+ * Reconstructs lines from pdfjs text items preserving vertical line breaks and horizontal spacing.
+ * Also handles two-column resume layouts by grouping items into left and right columns if a clear split exists.
+ */
+function reconstructPageText(items: any[]): string {
+  if (!items || items.length === 0) return '';
+
+  const validItems = items
+    .filter((item: any) => item && typeof item.str === 'string' && item.str.length > 0)
+    .map((item: any) => ({
+      str: item.str,
+      x: item.transform ? Number(item.transform[4]) : 0,
+      y: item.transform ? Number(item.transform[5]) : 0,
+      width: item.width ? Number(item.width) : 0,
+      height: item.height ? Number(item.height) : 10,
+      hasEOL: Boolean(item.hasEOL),
+    }));
+
+  if (validItems.length === 0) return '';
+
+  // Check if this page has a distinct two-column layout:
+  // Items in a left column (X < 240) and right column (X >= 240) without wide banners spanning across
+  const leftItems = validItems.filter(it => it.x < 240);
+  const rightItems = validItems.filter(it => it.x >= 240);
+  const hasSpanningBanner = validItems.some(it => it.x < 150 && it.x + it.width > 350);
+  const isTwoColumn = leftItems.length > 10 && rightItems.length > 10 && !hasSpanningBanner;
+
+  const processBlock = (blockItems: typeof validItems): string => {
+    const lines: { y: number; items: typeof validItems }[] = [];
+
+    for (const item of blockItems) {
+      const tolerance = Math.max(3, item.height * 0.45);
+      const line = lines.find(l => Math.abs(l.y - item.y) <= tolerance);
+      if (line) {
+        line.items.push(item);
+      } else {
+        lines.push({ y: item.y, items: [item] });
+      }
+    }
+
+    // Top to bottom (Y descending in PDF coordinate system)
+    lines.sort((a, b) => b.y - a.y);
+
+    const formattedLines: string[] = [];
+    for (const line of lines) {
+      line.items.sort((a, b) => a.x - b.x);
+
+      let lineText = '';
+      let prevX = -1;
+      let prevWidth = 0;
+
+      for (const it of line.items) {
+        if (prevX >= 0) {
+          const gap = it.x - (prevX + prevWidth);
+          if (gap > 2 && !lineText.endsWith(' ') && !it.str.startsWith(' ')) {
+            lineText += ' ';
+          }
+        }
+        lineText += it.str;
+        prevX = it.x;
+        prevWidth = it.width;
+      }
+
+      const trimmed = lineText.trim();
+      if (trimmed) {
+        formattedLines.push(trimmed);
+      }
+    }
+
+    return formattedLines.join('\n');
+  };
+
+  if (isTwoColumn) {
+    const leftText = processBlock(leftItems);
+    const rightText = processBlock(rightItems);
+    return `${leftText}\n\n${rightText}`;
+  }
+
+  return processBlock(validItems);
+}
+
+/**
  * Resilient multi-tier PDF text extraction:
  * Tier 1: Direct in-memory pdfjs-dist with pre-loaded WorkerMessageHandler (no external path/bundle dependency)
  * Tier 2: Multimodal Gemini 2.0 Flash for scanned/image-only PDFs
@@ -40,10 +121,10 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
-      const pageText = content.items
-        .map((item: any) => item.str || '')
-        .join(' ');
-      fullText += pageText + '\n';
+      const pageText = reconstructPageText(content.items);
+      if (pageText) {
+        fullText += (fullText ? '\n\n' : '') + pageText;
+      }
     }
     await doc.destroy();
     text = fullText.trim();

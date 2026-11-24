@@ -39,36 +39,42 @@ const SECTION_HEADERS: Record<string, string[]> = {
   personal: [
     'personal', 'profile', 'personal profile', 'summary', 'professional summary',
     'summary of qualifications', 'executive summary', 'objective', 'career objective',
-    'about', 'about me', 'bio'
+    'about', 'about me', 'bio', 'contact', 'contact information'
   ],
   education: [
     'education', 'educational background', 'academic background',
-    'academic history', 'academics', 'qualifications', 'degrees'
+    'academic history', 'academics', 'qualifications', 'degrees',
+    'education & training', 'academic qualifications', 'academic credentials'
   ],
   experience: [
     'experience', 'work experience', 'employment', 'employment history',
     'work history', 'professional experience', 'career history',
-    'positions held', 'professional background'
+    'positions held', 'professional background', 'relevant experience',
+    'internships', 'work experience & projects', 'industry experience'
   ],
   skills: [
     'skills', 'technical skills', 'core skills', 'key skills',
     'competencies', 'core competencies', 'technologies',
     'tools & technologies', 'tools and technologies', 'tech stack',
-    'areas of expertise', 'expertise', 'proficiencies', 'programming languages'
+    'areas of expertise', 'expertise', 'proficiencies', 'programming languages',
+    'technical proficiencies', 'skills & tools', 'skills and tools', 'skillset',
+    'technical skills & tools', 'skills & abilities'
   ],
   projects: [
     'projects', 'key projects', 'notable projects', 'personal projects',
-    'selected projects', 'academic projects', 'portfolio', 'work samples'
+    'selected projects', 'academic projects', 'portfolio', 'work samples',
+    'featured projects', 'technical projects', 'independent projects'
   ],
   achievements: [
     'achievements', 'awards', 'honors', 'accomplishments',
     'recognition', 'awards & honors', 'awards and honors',
-    'key achievements', 'notable achievements'
+    'key achievements', 'notable achievements', 'honors & awards',
+    'awards & achievements'
   ],
   certifications: [
     'certifications', 'certificates', 'licenses', 'credentials',
     'certifications & licenses', 'certifications and licenses',
-    'licenses & certifications'
+    'licenses & certifications', 'professional certifications'
   ],
 };
 
@@ -111,25 +117,29 @@ function extractUrls(text: string): string[] {
 
 function matchSectionHeader(rawLine: string): string | null {
   const line = rawLine.trim();
-  if (!line || line.length > 55) return null;
+  if (!line || line.length > 60) return null;
 
-  // Clean decorators: markdown headers, bullets, numbers, trailing/leading hyphens, colons, underscores
+  // Clean decorators: markdown headers, bullets, numbers, trailing/leading hyphens, colons, underscores, slashes, pipes
   const clean = line
-    .replace(/^(\d+\.?|[•\-*►#=~_]+\s*)/, '')
-    .replace(/[:=~_\-#*]+$/, '')
+    .replace(/^[#*_\-\s\d.)/|►•:]+/, '')
+    .replace(/[:=~_\-#*|/]+$/, '')
     .trim()
     .toLowerCase();
 
-  if (!clean || clean.length > 40) return null;
+  if (!clean || clean.length > 45) return null;
 
   // Reject lines that look like prose sentences or have common body words
-  if (/\b(with|years?|year|building|passionate|worked|using|responsible|proven|experienced|proficient|track record|strong|crafting|developing|architecting|spearheaded)\b/i.test(clean)) {
+  if (/\b(with|years?|year|building|passionate|worked|using|responsible|proven|experienced|proficient|track record|strong|crafting|developing|architecting|spearheaded|developed|built|created)\b/i.test(clean)) {
     return null;
   }
 
   for (const [section, headers] of Object.entries(SECTION_HEADERS)) {
     for (const header of headers) {
-      if (clean === header) {
+      if (
+        clean === header ||
+        clean === header + 's' ||
+        clean.replace(/&/g, 'and') === header.replace(/&/g, 'and')
+      ) {
         return section;
       }
     }
@@ -186,26 +196,86 @@ function parsePersonalInfo(text: string, fullText: string): Partial<PersonalInfo
 
   // Try to extract name from first non-empty lines
   const nonBlankLines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
-  for (let i = 0; i < Math.min(3, nonBlankLines.length); i++) {
-    const line = nonBlankLines[i];
-    const nameMatch = line.match(/^([A-Z][a-zA-Z'\-]+(?:\s+[A-Z][a-zA-Z'\-]+){1,3})$/);
-    if (nameMatch) {
-      const nameParts = nameMatch[1].split(/\s+/);
-      personal.firstName = nameParts[0];
-      personal.lastName = nameParts.slice(1).join(' ');
-      break;
+  const skipWords = /^(resume|curriculum vitae|cv|portfolio|personal profile|profile|biodata|bio|contact)$/i;
+
+  for (let i = 0; i < Math.min(8, nonBlankLines.length); i++) {
+    const rawLine = nonBlankLines[i];
+    const line = rawLine.replace(/^[#*_\-\s►•·|]+/, '').replace(/[#*_\-\s►•·|]+$/, '').trim();
+
+    if (!line || skipWords.test(line)) continue;
+
+    // Check if line contains email or phone
+    const hasContact = EMAIL_REGEX.test(line) || PHONE_REGEX.test(line) || URL_REGEX.test(line);
+    if (hasContact) {
+      // If line is e.g. "Jane Doe | jane@example.com | 555-0199"
+      const firstSegment = line.split(/[|•·,]/)[0].trim();
+      const segMatch = firstSegment.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
+      if (segMatch && !/^(email|phone|tel|address|location|github|linkedin|http)/i.test(firstSegment)) {
+        const parts = segMatch[1].split(/\s+/).filter(Boolean);
+        if (parts.length >= 2 && !personal.firstName) {
+          personal.firstName = parts[0];
+          personal.lastName = parts.slice(1).join(' ');
+          break;
+        }
+      }
+      continue;
+    }
+
+    // Check if line contains a pipe, dash or bullet separating name and title: e.g. "Jane Doe | Full Stack Engineer"
+    const segments = line.split(/\s*[|•·]\s*/);
+    const candidateName = segments[0].trim();
+    const candidateTitle = segments[1]?.trim();
+
+    const nameMatch = candidateName.match(/^([A-Za-z.\-']+(?:\s+[A-Za-z.\-']+){1,3})$/);
+    if (nameMatch && !/^(education|experience|skills|projects|summary|contact)/i.test(candidateName)) {
+      const parts = nameMatch[1].split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        personal.firstName = parts[0];
+        personal.lastName = parts.slice(1).join(' ');
+        if (candidateTitle && !personal.title && candidateTitle.length > 3 && candidateTitle.length < 60) {
+          personal.title = candidateTitle;
+        }
+        break;
+      }
     }
   }
 
-  // Try to extract title/role from first section
-  const lines = fullText.split('\n');
-  for (let i = 0; i < Math.min(15, lines.length); i++) {
-    const line = lines[i].trim();
-    // Look for title patterns
-    if (line && !line.match(/^[A-Z][a-z]+\s+[A-Z][a-z]+$/) && line.length > 5 && line.length < 80) {
-      // Skip if it looks like an email, phone, or URL
-      if (!EMAIL_REGEX.test(line) && !PHONE_REGEX.test(line) && !URL_REGEX.test(line)) {
-        personal.title = line;
+  // Extract location: look for "City, State/Country" or "Location: ..."
+  for (let i = 0; i < Math.min(15, nonBlankLines.length); i++) {
+    const line = nonBlankLines[i];
+    if (personal.location) break;
+
+    const locPrefixMatch = line.match(/(?:location|address)[:\s]+([^|•\n,]+(?:,[^|•\n]+)?)/i);
+    if (locPrefixMatch) {
+      personal.location = locPrefixMatch[1].trim();
+      break;
+    }
+
+    // Match City, State (e.g. "San Francisco, CA" or "New York, NY" or "Seattle, WA 98101" or "Bangalore, India")
+    const cityStateMatch = line.match(/\b([A-Z][a-zA-Z\s.-]+,\s*(?:[A-Z]{2}(?:\s+\d{5})?|[A-Z][a-zA-Z\s.-]+))\b/);
+    if (cityStateMatch) {
+      const candidateLoc = cityStateMatch[1].trim();
+      if (!/university|college|institute|corporation|company|inc|llc|present|experience/i.test(candidateLoc) && candidateLoc.length < 45) {
+        personal.location = candidateLoc;
+      }
+    }
+  }
+
+  // Try to extract title/role if not yet set
+  if (!personal.title) {
+    const titleKeywords = /engineer|developer|designer|architect|manager|consultant|analyst|scientist|specialist|lead|student|intern|researcher/i;
+    for (let i = 0; i < Math.min(10, nonBlankLines.length); i++) {
+      const line = nonBlankLines[i].replace(/^[#*_\-\s►•·|]+/, '').trim();
+      if (
+        titleKeywords.test(line) &&
+        line.length > 4 &&
+        line.length < 60 &&
+        !EMAIL_REGEX.test(line) &&
+        !PHONE_REGEX.test(line) &&
+        !URL_REGEX.test(line) &&
+        !/^(experience|education|skills|projects|summary|profile)/i.test(line)
+      ) {
+        personal.title = line.split(/[|•·,]/)[0].trim();
         break;
       }
     }
@@ -249,8 +319,8 @@ function parseEducation(text: string): Education[] {
     }
   };
 
-  const institutionRegex = /university|college|institute|school|academy|polytechnic/i;
-  const degreeRegex = /(Bachelor|Master|PhD|Doctorate|Associate|Diploma|Certificate|B\.?S\.?|M\.?S\.?|B\.?A\.?|M\.?A\.?|MBA|B\.?Tech|M\.?Tech|B\.?E\.?|M\.?E\.?)/i;
+  const institutionRegex = /university|college|institute|school|academy|polytechnic|\b(MIT|Stanford|Harvard|CMU|Caltech|Berkeley|UCLA|USC|NYU|IIT|BITS|Georgia Tech|Oxford|Cambridge)\b/i;
+  const degreeRegex = /(Bachelor|Master|PhD|Doctorate|Associate|Diploma|Certificate|B\.?S\.?|M\.?S\.?|B\.?A\.?|M\.?A\.?|MBA|B\.?Tech|M\.?Tech|B\.?E\.?|M\.?E\.?|BCA|MCA|BBA)/i;
   const yearRegex = /\b(19|20)\d{2}\s*[-–—]\s*(19|20)\d{2}|\b(19|20)\d{2}\s*[-–—]\s*(Present|Current)|\b(19|20)\d{2}\b/i;
   const fieldRegex = /(Computer Science|Software Engineering|Information Technology|Data Science|Mathematics|Physics|Engineering|Business|Economics|Design|Arts|Marketing|Finance|Management)/i;
   const gpaRegex = /(?:GPA|CGPA|Grade)[:\s]*([0-4]\.\d{1,2}(?:\s*\/\s*[0-4]\.\d{1,2})?|\d{1,2}\.?\d*(?:\s*\/\s*\d{1,2})?)/i;
@@ -270,7 +340,7 @@ function parseEducation(text: string): Education[] {
     }
 
     if (isInstitution && !currentEntry.institution) {
-      const parts = line.split(/\s+[|•]\s+/);
+      const parts = line.split(/\s+[|•,]\s+/);
       currentEntry.institution = parts[0].trim();
       if (parts.length > 1) {
         for (let p = 1; p < parts.length; p++) {
@@ -332,7 +402,7 @@ function parseExperience(text: string): Experience[] {
     }
   };
 
-  const positionKeywords = /engineer|developer|analyst|manager|lead|architect|consultant|intern|director|vp|head|chief|officer|specialist|coordinator|designer|researcher|scientist|administrator|technician|programmer/i;
+  const positionKeywords = /engineer|developer|analyst|manager|lead|architect|consultant|intern|director|vp|head|chief|officer|specialist|coordinator|designer|researcher|scientist|administrator|technician|programmer|fellow|founder|co-founder|cto|ceo|assistant|instructor|contributor/i;
   const dateRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\s*(?:[-–—]|to)\s*(?:(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}|Present|Current|Ongoing)|\b\d{1,2}\/\d{4}\s*(?:[-–—]|to)\s*(?:\d{1,2}\/\d{4}|Present|Current|Ongoing)|\b(19|20)\d{2}\s*(?:[-–—]|to)\s*((19|20)\d{2}|Present|Current|Ongoing)|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}\b/i;
 
   for (let i = 0; i < lines.length; i++) {
@@ -435,7 +505,21 @@ function parseExperience(text: string): Experience[] {
         currentEntry.company = cleanLine;
       }
     } else if (currentEntry.company || currentEntry.position) {
-      if (!currentEntry.location && (line.includes(',') || /^(remote|hybrid|onsite)$/i.test(line))) {
+      if (currentEntry.position && !currentEntry.company && !line.startsWith('•') && !line.startsWith('-') && line.length < 75) {
+        const cleanCompanyLine = dateMatch ? line.replace(dateMatch[0], '').trim() : line;
+        if (cleanCompanyLine.includes(',')) {
+          const parts = cleanCompanyLine.split(',');
+          currentEntry.company = parts[0].trim();
+          if (!currentEntry.location && parts[1]) currentEntry.location = parts.slice(1).join(',').trim();
+        } else {
+          currentEntry.company = cleanCompanyLine;
+        }
+        if (dateMatch && !currentEntry.startDate) {
+          currentEntry.startDate = startDate;
+          currentEntry.endDate = endDate;
+          currentEntry.current = isCurrent;
+        }
+      } else if (!currentEntry.location && (line.includes(',') || /^(remote|hybrid|onsite)$/i.test(line))) {
         currentEntry.location = line;
       } else {
         currentEntry.description = (currentEntry.description ? currentEntry.description + ' ' : '') + line;
@@ -699,12 +783,27 @@ export function parseResumeText(text: string): ResumeParseResult {
 
     // Parse each section
     const personal = parsePersonalInfo(sectionTexts.personal || cleanedText, cleanedText);
-    const education = sectionTexts.education ? parseEducation(sectionTexts.education) : [];
-    const experience = sectionTexts.experience ? parseExperience(sectionTexts.experience) : [];
+    let education = sectionTexts.education ? parseEducation(sectionTexts.education) : [];
+    if (education.length === 0) {
+      education = parseEducation(cleanedText);
+    }
+    let experience = sectionTexts.experience ? parseExperience(sectionTexts.experience) : [];
+    if (experience.length === 0) {
+      experience = parseExperience(cleanedText);
+    }
     const skills = sectionTexts.skills ? parseSkills(sectionTexts.skills) : parseSkills(cleanedText);
-    const projects = sectionTexts.projects ? parseProjects(sectionTexts.projects) : [];
-    const achievements = sectionTexts.achievements ? parseAchievements(sectionTexts.achievements) : [];
-    const certifications = sectionTexts.certifications ? parseCertifications(sectionTexts.certifications) : [];
+    let projects = sectionTexts.projects ? parseProjects(sectionTexts.projects) : [];
+    if (projects.length === 0) {
+      projects = parseProjects(cleanedText);
+    }
+    let achievements = sectionTexts.achievements ? parseAchievements(sectionTexts.achievements) : [];
+    if (achievements.length === 0) {
+      achievements = parseAchievements(cleanedText);
+    }
+    let certifications = sectionTexts.certifications ? parseCertifications(sectionTexts.certifications) : [];
+    if (certifications.length === 0) {
+      certifications = parseCertifications(cleanedText);
+    }
 
     // Calculate confidence based on how many sections we found
     let confidence = 20; // base
