@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Sparkles, ArrowLeft, ArrowRight, Check, Brain, Lightbulb } from 'lucide-react';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
-import { PortfolioData, generateId } from '@/lib/types';
+import { PortfolioData, generateId, DEFAULT_PORTFOLIO } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
 import { getSamplePortfolio } from '@/lib/sampleProfiles';
 import ChatWidget from '@/components/ai/ChatWidget';
@@ -35,40 +35,37 @@ function BuilderContent() {
   const loadSampleParam = searchParams.get('loadSample');
 
   const [step, setStep] = useState(0);
-  const [data, setData] = useState<PortfolioData>(() => {
-    if (typeof window !== 'undefined') {
-      const loaded = loadPortfolio();
-      const targetTpl = preselectedTemplate || loaded.templateId || 'spider-verse';
-      if (loadSampleParam === 'true') {
-        return getSamplePortfolio(targetTpl);
-      }
-      if (preselectedTemplate) {
-        const tpl = TEMPLATES.find((t) => t.id === preselectedTemplate);
-        return {
-          ...loaded,
-          templateId: preselectedTemplate,
-          theme: { ...loaded.theme, ...(tpl?.defaultTheme ?? {}) },
-        };
-      }
-      return loaded;
-    }
-    return loadPortfolio();
-  });
-
+  const [data, setData] = useState<PortfolioData>(DEFAULT_PORTFOLIO);
   const [showAssistant, setShowAssistant] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Initialize behavior tracking and mount flag
+  // Initialize behavior tracking, mount flag, and load portfolio from localStorage
   useEffect(() => {
     setMounted(true);
     initializeBehaviorTracking();
-  }, []);
 
-  // Auto-save on data change
+    const loaded = loadPortfolio();
+    const targetTpl = preselectedTemplate || loaded.templateId || 'spider-verse';
+    if (loadSampleParam === 'true') {
+      setData(getSamplePortfolio(targetTpl));
+    } else if (preselectedTemplate) {
+      const tpl = TEMPLATES.find((t) => t.id === preselectedTemplate);
+      setData({
+        ...loaded,
+        templateId: preselectedTemplate,
+        theme: { ...loaded.theme, ...(tpl?.defaultTheme ?? {}) },
+      });
+    } else {
+      setData(loaded);
+    }
+  }, [preselectedTemplate, loadSampleParam]);
+
+  // Auto-save on data change only after mounted
   useEffect(() => {
+    if (!mounted) return;
     savePortfolio(data);
-  }, [data]);
+  }, [data, mounted]);
 
   // Derived user context for intelligence (client-side only)
   const userContext = useMemo(() => {
@@ -101,6 +98,17 @@ function BuilderContent() {
   const handleBack = () => {
     if (step > 0) setStep((s) => s - 1);
   };
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] text-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-white/40">Loading PortCraft Builder...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">

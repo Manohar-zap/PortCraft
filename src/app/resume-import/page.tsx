@@ -539,9 +539,16 @@ function UploadStep({
   onDrop: (e: React.DragEvent) => void;
 }) {
   const [dragActive, setDragActive] = useState(false);
-  const [apiKey, setApiKey] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('gemini_api_key') || '' : ''));
+  const [apiKey, setApiKey] = useState('');
   const [savedKeyMsg, setSavedKeyMsg] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('gemini_api_key');
+      if (saved) setApiKey(saved);
+    }
+  }, []);
 
   const handleApiKeyChange = (val: string) => {
     setApiKey(val);
