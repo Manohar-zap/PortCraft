@@ -1,12 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
-import { PDFParse } from 'pdf-parse';
 import mammoth from 'mammoth';
 import Tesseract from 'tesseract.js';
 import { GoogleGenAI } from '@google/genai';
 import { parseResumeText } from '@/lib/resumeParser';
 
 export const maxDuration = 60;
+
+/**
+ * Resilient multi-tier PDF text extraction:
+ * Tier 1: Direct in-memory pdfjs-dist with pre-loaded WorkerMessageHandler (no external path/bundle dependency)
+ * Tier 2: Multimodal Gemini 2.0 Flash for scanned/image-only PDFs
+ */
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  let text = '';
+
+  // Tier 1: Direct in-memory pdfjs-dist
+  try {
+    const [pdfjs, worker] = await Promise.all([
+      import('pdfjs-dist/legacy/build/pdf.mjs'),
+      // @ts-expect-error pdfjs-dist worker has no declaration file
+      import('pdfjs-dist/legacy/build/pdf.worker.mjs'),
+    ]);
+    if (pdfjs.PDFWorker && worker.WorkerMessageHandler) {
+      Object.defineProperty(pdfjs.PDFWorker, '_setupFakeWorkerGlobal', {
+        value: Promise.resolve(worker.WorkerMessageHandler),
+        configurable: true,
+        writable: true,
+      });
+    }
+
+    const doc = await pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: true,
+    }).promise;
+
+    let fullText = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: any) => item.str || '')
+        .join(' ');
+      fullText += pageText + '\n';
+    }
+    await doc.destroy();
+    text = fullText.trim();
+  } catch (pdfjsErr) {
+    console.warn('pdfjs-dist in-memory extraction failed:', pdfjsErr);
+  }
+
+  // Tier 2: Gemini multimodal vision for scanned image-only PDFs
+  if ((!text || text.length < 50) && process.env.GEMINI_API_KEY) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+      const result = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: 'application/pdf',
+                  data: buffer.toString('base64'),
+                },
+              },
+              {
+                text: 'Extract all resume text verbatim from this PDF resume document. Preserve personal details, contact info, summary, work experience, education, skills, projects, and achievements. Keep clear line breaks and headings. Output only the extracted plain text.',
+              },
+            ],
+          },
+        ],
+      });
+      text = result.text?.trim() || text;
+    } catch (geminiPdfErr) {
+      console.warn('Gemini PDF multimodal fallback failed:', geminiPdfErr);
+    }
+  }
+
+  return text;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,15 +147,11 @@ export async function POST(request: NextRequest) {
 
     // Parse based on file type
     if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
-      try {
-        const parser = new PDFParse({ data: buffer });
-        const pdfData = await parser.getText();
-        text = pdfData.text;
-        await parser.destroy();
-      } catch (pdfError) {
-        console.error('PDF parsing error:', pdfError);
+      text = await extractPdfText(buffer);
+
+      if (!text || text.trim().length < 20) {
         return NextResponse.json(
-          { success: false, error: 'Failed to parse PDF. The file may be corrupted or password-protected.' },
+          { success: false, error: 'Could not extract readable text from this PDF. Please verify the file is not password-protected or empty.' },
           { status: 400 }
         );
       }

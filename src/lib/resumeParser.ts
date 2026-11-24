@@ -761,8 +761,8 @@ export async function parseResumeFile(file: File): Promise<ResumeParseResult> {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      return { success: false, error: error.message || 'Failed to parse file' };
+      const data = await response.json().catch(() => ({}));
+      return { success: false, error: data.error || data.message || 'Failed to parse file' };
     }
 
     return await response.json();
