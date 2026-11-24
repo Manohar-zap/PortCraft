@@ -52,7 +52,7 @@ REQUIRED JSON OUTPUT FORMAT:
     {
       "name": "Skill name",
       "category": "Frontend|Backend|DevOps|Data Science|Mobile|Tools|Languages|Other",
-      "level": 4
+      "level": 0
     }
   ]
 }
@@ -100,7 +100,7 @@ Return ONLY valid JSON.`;
           id: generateId(),
           name: s.name || '',
           category: s.category || 'Tools',
-          level: typeof s.level === 'number' ? s.level : 4,
+          level: typeof s.level === 'number' ? Math.max(0, Math.min(5, s.level)) : 0,
         }));
 
         return Response.json({

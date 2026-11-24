@@ -87,7 +87,7 @@ export default function ResumeImportPage() {
 
   const canProceed = useCallback(() => {
     if (step === 'upload') return !!parsedData.rawText;
-    if (step === 'review') return !!parsedData.personal.firstName || !!parsedData.personal.email;
+    if (step === 'review') return !!parsedData.personal.firstName || !!parsedData.personal.email || parsedData.skills.length > 0 || parsedData.experience.length > 0 || parsedData.education.length > 0;
     if (step === 'template') return !!selectedTemplate;
     return true;
   }, [step, parsedData, selectedTemplate]);

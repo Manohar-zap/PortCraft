@@ -249,13 +249,15 @@ export function parseLinkedInText(rawText: string): ParsedLinkedInData {
           }
         }
       } else if (/university|college|institute|institute of technology|polytechnic/i.test(line)) {
+        const years = line.match(/\b(20\d\d|19\d\d)\b/g);
+        const degMatch = line.match(/(Bachelor|Master|PhD|Doctorate|Associate|Diploma|Certificate|B\.?S\.?|M\.?S\.?|B\.?A\.?|M\.?A\.?|MBA|B\.?Tech|M\.?Tech|B\.?E\.?|M\.?E\.?)/i);
         education.push({
           id: generateId(),
-          institution: line,
-          degree: 'Bachelor of Science',
-          field: 'Computer Science',
-          startYear: '2021',
-          endYear: '2025',
+          institution: line.split(/[,|•]/)[0].trim(),
+          degree: degMatch ? degMatch[0] : '',
+          field: '',
+          startYear: years?.[0] || '',
+          endYear: years?.[1] || (years?.length === 1 && /present|current/i.test(line) ? 'Present' : ''),
           gpa: '',
           description: '',
         });

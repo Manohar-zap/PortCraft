@@ -238,10 +238,14 @@ export async function POST(request: NextRequest) {
       }
     } else if (fileName.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       try {
-        const result = await mammoth.extractRawText({ buffer });
-        text = result.value;
-        if (result.messages.length > 0) {
-          console.warn('DOCX parsing warnings:', result.messages);
+        const mdResult = await (mammoth as any).convertToMarkdown({ buffer });
+        text = mdResult?.value || '';
+        if (!text || text.trim().length < 50) {
+          const rawResult = await mammoth.extractRawText({ buffer });
+          text = rawResult.value;
+        }
+        if (mdResult?.messages?.length > 0) {
+          console.warn('DOCX parsing warnings:', mdResult.messages);
         }
       } catch (docxError) {
         console.error('DOCX parsing error:', docxError);

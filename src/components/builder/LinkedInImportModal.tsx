@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sparkles, BookOpen, Star, Check, ArrowRight, RefreshCw, Upload, FileText } from 'lucide-react';
 import { Education, Skill } from '@/lib/types';
 import { parseLinkedInText } from '@/lib/integrations/linkedin/parser';
+import { parseResumeFile } from '@/lib/resumeParser';
 
 interface Props {
   isOpen: boolean;
@@ -73,9 +74,34 @@ export default function LinkedInImportModal({ isOpen, onClose, onApply }: Props)
     setParsing(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const lowerName = file.name.toLowerCase();
+    const isBinaryDocument = lowerName.endsWith('.pdf') || lowerName.endsWith('.docx') || file.type === 'application/pdf';
+
+    if (isBinaryDocument) {
+      setParsing(true);
+      setError(null);
+      try {
+        const result = await parseResumeFile(file);
+        if (result.success && result.data) {
+          setInputText(result.data.rawText || '');
+          setPreviewData({
+            education: result.data.education,
+            skills: result.data.skills,
+          });
+        } else {
+          setError(result.error || 'Failed to extract text from document');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to parse file');
+      } finally {
+        setParsing(false);
+      }
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
