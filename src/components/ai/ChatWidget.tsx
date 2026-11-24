@@ -37,6 +37,7 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
   const [loading, setLoading] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
+  const [appliedActions, setAppliedActions] = useState<Record<string, boolean>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -59,9 +60,9 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
     }
   }, [messages, open, minimized]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
-    const userMessage = input.trim();
+  const handleSend = async (overridePrompt?: string | React.SyntheticEvent) => {
+    const userMessage = (typeof overridePrompt === 'string' ? overridePrompt : input).trim();
+    if (!userMessage || loading) return;
     setInput('');
 
     const newMessages: ChatMessage[] = [...messages, { role: 'user', content: userMessage }];
@@ -103,7 +104,7 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
     setLoading(false);
   };
 
-  const applyAction = (action: ProposedAction) => {
+  const applyAction = (action: ProposedAction, actionKey?: string) => {
     if (action.type === 'update_bio' && action.proposedValue) {
       updateData({ personal: { ...data.personal, bio: action.proposedValue } });
     } else if (action.type === 'update_headline' && action.proposedValue) {
@@ -113,6 +114,24 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
         p.id === action.field ? { ...p, description: action.proposedValue! } : p
       );
       updateData({ projects: updatedProjects });
+    } else if (action.type === 'switch_theme' && (action.proposedValue || action.field)) {
+      const targetTheme = action.proposedValue || action.field;
+      if (targetTheme) {
+        updateData({ templateId: targetTheme });
+      }
+    } else if (action.type === 'add_skill' && action.proposedValue) {
+      const exists = data.skills.some(s => s.name.toLowerCase() === action.proposedValue!.toLowerCase());
+      if (!exists) {
+        updateData({
+          skills: [
+            ...data.skills,
+            { id: `skill-${Date.now()}`, name: action.proposedValue, level: 3, category: 'Technical' }
+          ]
+        });
+      }
+    }
+    if (actionKey) {
+      setAppliedActions(prev => ({ ...prev, [actionKey]: true }));
     }
   };
 
@@ -199,12 +218,18 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                                   </div>
                                 )}
                                 <div className="flex gap-1.5">
-                                  <button
-                                    onClick={() => applyAction(action)}
-                                    className="flex items-center gap-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 px-2 py-1 rounded text-[10px] font-semibold transition-all"
-                                  >
-                                    <Check size={10} /> Apply
-                                  </button>
+                                  {appliedActions[`${msg.content}-${ai}`] ? (
+                                    <span className="flex items-center gap-1 bg-green-500/20 text-green-300 px-2.5 py-1 rounded text-[10px] font-semibold border border-green-500/30">
+                                      <Check size={10} /> Applied
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => applyAction(action, `${msg.content}-${ai}`)}
+                                      className="flex items-center gap-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 px-2 py-1 rounded text-[10px] font-semibold transition-all"
+                                    >
+                                      <Check size={10} /> Apply
+                                    </button>
+                                  )}
                                   <button className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded text-[10px] transition-all">
                                     <Ban size={10} /> Skip
                                   </button>
@@ -239,8 +264,8 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                     ].map(prompt => (
                       <button
                         key={prompt}
-                        onClick={() => setInput(prompt)}
-                        className="text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 px-2.5 py-1 rounded-full border border-violet-500/20 transition-all"
+                        onClick={() => handleSend(prompt)}
+                        className="text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 px-2.5 py-1 rounded-full border border-violet-500/20 transition-all hover:scale-105 active:scale-95"
                       >
                         {prompt}
                       </button>

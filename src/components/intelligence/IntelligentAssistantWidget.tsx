@@ -78,9 +78,9 @@ export default function IntelligentAssistantWidget({
   }, []);
 
   // Send message
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, directMessage?: string) => {
     e?.preventDefault();
-    const message = inputValue.trim();
+    const message = (directMessage !== undefined ? directMessage : inputValue).trim();
     if (!message || isProcessing) return;
 
     setInputValue('');
@@ -103,8 +103,7 @@ export default function IntelligentAssistantWidget({
 
   // Quick action
   const handleQuickAction = (action: string) => {
-    setInputValue(action);
-    handleSend();
+    handleSend(undefined, action);
   };
 
   // Handle recommendation feedback
@@ -247,7 +246,7 @@ export default function IntelligentAssistantWidget({
                             onAction={handleAction}
                           />
                         )}
-                        {message.type === 'action' && message.metadata?.actions && (
+                        {message.metadata?.actions && message.metadata.actions.length > 0 && (
                           <ActionButtons actions={message.metadata.actions} onAction={handleAction} />
                         )}
                         <div className={`whitespace-pre-wrap ${message.role === 'user' ? 'text-white' : 'text-white/90'}`}>
