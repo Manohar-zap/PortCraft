@@ -30,6 +30,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const safeHex = value && value.startsWith('#') && value.length === 7 ? value : '#7c3aed';
   return (
     <div className="flex items-center justify-between gap-3">
       <label className="text-sm text-white/60">{label}</label>
@@ -37,7 +38,7 @@ function ColorRow({ label, value, onChange }: { label: string; value: string; on
         <span className="text-xs text-white/30 font-mono">{value}</span>
         <input
           type="color"
-          value={value}
+          value={safeHex}
           onChange={(e) => onChange(e.target.value)}
           className="w-8 h-8 rounded-lg cursor-pointer border border-white/10"
           style={{ padding: '2px', background: 'transparent' }}
@@ -196,7 +197,22 @@ export default function Customizer({ data, updateData }: Props) {
         <div>
           <label className="text-xs text-white/50 mb-1.5 block">Color Mode</label>
           <button
-            onClick={() => updateTheme({ darkMode: !theme.darkMode })}
+            onClick={() => {
+              const nextDark = !theme.darkMode;
+              if (nextDark) {
+                updateTheme({
+                  darkMode: true,
+                  backgroundColor: activeTemplate?.defaultTheme.backgroundColor || '#0a0a0f',
+                  textColor: activeTemplate?.defaultTheme.textColor || '#ffffff',
+                });
+              } else {
+                updateTheme({
+                  darkMode: false,
+                  backgroundColor: '#FAF9F6',
+                  textColor: '#18181B',
+                });
+              }
+            }}
             className={`w-full py-2 rounded-lg text-xs font-medium transition-all ${
               theme.darkMode ? 'bg-slate-700 text-white' : 'bg-white/[0.05] text-white/60 hover:bg-white/[0.08]'
             }`}
