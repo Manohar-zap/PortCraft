@@ -23,7 +23,7 @@ const fadeUp: Variants = {
 
 export default function LandingPage() {
   return (
-    <div className="bg-[#0a0a0f] text-white overflow-x-hidden">
+    <div className="bg-[#0a0a0f] text-white overflow-x-hidden" suppressHydrationWarning>
       <Nav />
       <Hero />
       <Features />
@@ -38,9 +38,14 @@ export default function LandingPage() {
 /* ─── Navigation ─────────────────────────────────────────── */
 function Nav() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/50">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/50" suppressHydrationWarning>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold text-xl hover:opacity-90 transition-opacity">
@@ -101,7 +106,7 @@ function Nav() {
       </div>
 
       {/* Mobile Drawer */}
-      {mobileOpen && (
+      {mounted && mobileOpen && (
         <div className="lg:hidden bg-[#0c0c14]/95 border-b border-white/10 backdrop-blur-2xl px-5 py-4 space-y-2">
           <div className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-2">
             Navigation Menu

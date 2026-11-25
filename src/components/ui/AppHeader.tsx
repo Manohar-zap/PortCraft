@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Home, ArrowLeft, Sparkles, FileText, Brain,
@@ -40,6 +40,11 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [navDropdownOpen, setNavDropdownOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const containerClasses = isFixed
     ? 'fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/60 h-14 flex items-center px-3 sm:px-6 gap-2 sm:gap-3'
@@ -47,7 +52,7 @@ export default function AppHeader({
 
   return (
     <>
-      <header className={containerClasses}>
+      <header className={containerClasses} suppressHydrationWarning>
         {/* Left: Home / Back Link */}
         <div className="flex items-center gap-1.5 sm:gap-2">
           {backHref ? (
@@ -167,7 +172,7 @@ export default function AppHeader({
       </header>
 
       {/* Mobile Navigation Drawer */}
-      {mobileMenuOpen && (
+      {mounted && mobileMenuOpen && (
         <div className="fixed inset-x-0 top-14 z-50 bg-[#0e0e17]/95 border-b border-white/10 backdrop-blur-2xl p-4 shadow-2xl animate-in slide-in-from-top-2 duration-200">
           <div className="max-w-md mx-auto space-y-1">
             <div className="flex items-center justify-between px-3 mb-2">
