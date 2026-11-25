@@ -9,8 +9,9 @@ import {
   ChevronRight, Sparkles, Zap, Target, Layers, Eye,
   RotateCcw, Lock, Unlock, Key, Database, History,
   Share2, Clock, User, Palette, Code2, Award, BookOpen,
-  Briefcase, TrendingUp, ExternalLink, RefreshCw
+  Briefcase, TrendingUp, ExternalLink, RefreshCw, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { loadPortfolio } from '@/lib/storage';
 import { PortfolioData } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
@@ -140,18 +141,19 @@ export default function IntelligencePage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Back
-        </Link>
-        <div className="flex items-center gap-2 font-bold text-lg ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Brain size={12} />
-          </div>
-          <span className="text-gradient text-sm font-poppins">Intelligence System</span>
-        </div>
-      </div>
+      <AppHeader
+        currentPath="/intelligence"
+        pageTitle="Intelligence System"
+        rightActions={
+          <Link
+            href="/builder"
+            className="flex items-center gap-1.5 text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 rounded-lg transition-all shadow-md shadow-violet-600/20"
+          >
+            <span>Builder</span>
+            <ChevronRight size={13} />
+          </Link>
+        }
+      />
 
       {/* Tab Navigation */}
       <div className="fixed top-14 left-0 right-0 z-40 bg-black/80 backdrop-blur border-b border-white/5 px-6 py-3">

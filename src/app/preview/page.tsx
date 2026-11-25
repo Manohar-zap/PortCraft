@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Download, Eye, Palette, RefreshCw, Sparkles,
-  Monitor, Tablet, Smartphone, Settings2, X, Brain, Lightbulb
+  Monitor, Tablet, Smartphone, Settings2, X, Brain, Lightbulb, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { PortfolioData, generateId } from '@/lib/types';
 import { exportPortfolio } from '@/lib/exporter';
@@ -155,108 +156,88 @@ export default function PreviewPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] flex flex-col">
-      {/* Top toolbar */}
-      <div className="flex-shrink-0 h-14 border-b border-white/5 backdrop-blur-xl bg-black/60 flex items-center px-4 gap-3 z-50">
-        {/* Left */}
-        <Link href="/builder" className="flex items-center gap-1.5 text-white/60 hover:text-white text-sm transition-colors">
-          <ArrowLeft size={16} />
-          <span className="hidden sm:inline">Edit</span>
-        </Link>
-
-        <div className="w-px h-5 bg-white/10" />
-
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={10} />
+      {/* Top toolbar with navigation */}
+      <AppHeader
+        currentPath="/preview"
+        pageTitle={template?.name ?? 'Preview'}
+        backHref="/builder"
+        backLabel="Builder"
+        isFixed={false}
+        centerContent={
+          <div className="flex items-center gap-1 bg-white/[0.04] rounded-xl p-1 border border-white/5">
+            {([
+              { key: 'desktop', icon: <Monitor size={14} />, label: 'Desktop' },
+              { key: 'tablet', icon: <Tablet size={14} />, label: 'Tablet' },
+              { key: 'mobile', icon: <Smartphone size={14} />, label: 'Mobile' },
+            ] as const).map((v) => (
+              <button
+                key={v.key}
+                onClick={() => setViewport(v.key)}
+                className={`p-1.5 rounded-lg transition-all ${viewport === v.key ? 'bg-violet-600 text-white shadow-sm' : 'text-white/40 hover:text-white'}`}
+                title={v.label}
+              >
+                {v.icon}
+              </button>
+            ))}
           </div>
-          <span className="text-white/70 text-sm font-medium hidden sm:inline">
-            {template?.name ?? 'Portfolio Preview'}
-          </span>
-        </div>
-
-        {/* Center — Viewport controls */}
-        <div className="flex items-center gap-1 mx-auto bg-white/[0.04] rounded-xl p-1">
-          {([
-            { key: 'desktop', icon: <Monitor size={15} /> },
-            { key: 'tablet', icon: <Tablet size={15} /> },
-            { key: 'mobile', icon: <Smartphone size={15} /> },
-          ] as const).map((v) => (
+        }
+        rightActions={
+          <>
             <button
-              key={v.key}
-              onClick={() => setViewport(v.key)}
-              className={`p-2 rounded-lg transition-all ${viewport === v.key ? 'bg-violet-600 text-white' : 'text-white/40 hover:text-white'}`}
+              onClick={() => {
+                if (data) {
+                  const sample = getSamplePortfolio(data.templateId || 'spider-verse');
+                  updateData(sample);
+                }
+              }}
+              className="hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-800/30 hover:bg-emerald-700/40 border border-emerald-500/30 text-emerald-300 font-medium transition-all"
+              title="Load sample content tailored for this theme"
             >
-              {v.icon}
+              <Sparkles size={13} />
+              <span>Sample</span>
             </button>
-          ))}
-        </div>
-
-        {/* Right */}
-        <div className="flex items-center gap-2 ml-auto">
-          <button
-            onClick={() => {
-              if (data) {
-                const sample = getSamplePortfolio(data.templateId || 'spider-verse');
-                updateData(sample);
-              }
-            }}
-            className="flex items-center gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 rounded-lg bg-emerald-800/30 hover:bg-emerald-700/40 border border-emerald-500/30 text-emerald-300 font-medium transition-all"
-            title="Load sample content tailored for this theme"
-          >
-            <Sparkles size={14} />
-            <span className="hidden sm:inline">Load Sample</span>
-          </button>
-          <button
-            onClick={() => setShowCustomizer((s) => !s)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all ${
-              showCustomizer ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
-            }`}
-          >
-            <Palette size={15} />
-            <span className="hidden sm:inline">Customize</span>
-          </button>
-          <button
-            onClick={() => setShowRecommendations(!showRecommendations)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all ${
-              showRecommendations ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
-            }`}
-            title="AI Recommendations"
-          >
-            <Lightbulb size={15} />
-            <span className="hidden sm:inline">Recommendations</span>
-          </button>
-          <button
-            onClick={() => setShowAssistant(!showAssistant)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition-all ${
-              showAssistant ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
-            }`}
-            title="AI Assistant"
-          >
-            <Brain size={15} />
-            <span className="hidden sm:inline">Assistant</span>
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className={`flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-lg font-semibold transition-all ${
-              exportDone
-                ? 'bg-green-600 text-white'
-                : 'bg-violet-600 hover:bg-violet-700 text-white hover:scale-105 active:scale-95'
-            } disabled:opacity-60 disabled:cursor-not-allowed`}
-          >
-            {exporting ? (
-              <RefreshCw size={14} className="animate-spin" />
-            ) : exportDone ? (
-              '✓ Downloaded!'
-            ) : (
-              <>
-                <Download size={15} />
-                <span className="hidden sm:inline">Export</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
+            <button
+              onClick={() => setShowCustomizer((s) => !s)}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all ${
+                showCustomizer ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+              }`}
+            >
+              <Palette size={14} />
+              <span className="hidden sm:inline">Theme</span>
+            </button>
+            <button
+              onClick={() => setShowRecommendations(!showRecommendations)}
+              className={`hidden sm:flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all ${
+                showRecommendations ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+              }`}
+              title="AI Recommendations"
+            >
+              <Lightbulb size={14} />
+              <span className="hidden md:inline">Tips</span>
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className={`flex items-center gap-1.5 text-xs sm:text-sm px-3 sm:px-3.5 py-1.5 rounded-lg font-semibold transition-all ${
+                exportDone
+                  ? 'bg-green-600 text-white'
+                  : 'bg-violet-600 hover:bg-violet-700 text-white hover:scale-105 active:scale-95'
+              } disabled:opacity-60 disabled:cursor-not-allowed`}
+            >
+              {exporting ? (
+                <RefreshCw size={13} className="animate-spin" />
+              ) : exportDone ? (
+                '✓ Done'
+              ) : (
+                <>
+                  <Download size={13} />
+                  <span>Export</span>
+                </>
+              )}
+            </button>
+          </>
+        }
+      />
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">

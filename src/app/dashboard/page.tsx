@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Sparkles, Code2, GitBranch, Trophy,
   BookOpen, Briefcase, Star, ExternalLink, RefreshCw,
-  CheckCircle, AlertCircle, TrendingUp, Award, Globe
+  CheckCircle, AlertCircle, TrendingUp, Award, Globe, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { loadPortfolio } from '@/lib/storage';
 import type { PortfolioData, Repository, CodingStats } from '@/lib/types';
 
@@ -78,37 +79,35 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/connect" className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Connect More
-        </Link>
-        <div className="flex items-center gap-2 font-bold ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={12} />
+      <AppHeader
+        currentPath="/dashboard"
+        pageTitle="Profile Dashboard"
+        rightActions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
+            >
+              {analyzing ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              AI Analyze
+            </button>
+            <Link
+              href="/connect"
+              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold bg-white/[0.06] hover:bg-white/[0.12] text-white px-2.5 py-1.5 rounded-lg border border-white/10 transition-all"
+            >
+              Connect More
+            </Link>
+            <Link
+              href="/builder"
+              className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all shadow-md shadow-violet-600/20"
+            >
+              Build Portfolio
+              <ArrowRight size={13} />
+            </Link>
           </div>
-          <span className="text-sm font-poppins bg-gradient-to-r from-violet-400 to-purple-300 bg-clip-text text-transparent">
-            PortCraft — Profile Dashboard
-          </span>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className="flex items-center gap-1.5 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 px-3 py-1.5 rounded-lg transition-all disabled:opacity-50"
-          >
-            {analyzing ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
-            AI Analyze
-          </button>
-          <Link
-            href="/builder"
-            className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-all"
-          >
-            Build Portfolio
-            <ArrowRight size={13} />
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       <div className="pt-20 pb-24 px-4 md:px-6 max-w-6xl mx-auto">
 

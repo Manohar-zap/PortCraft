@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ArrowRight, Sparkles, Check, X, Edit2, Trash2,
   GitBranch, Code2, AlertTriangle, Eye, EyeOff, Star,
-  RefreshCw, CheckCircle, Plus, Wand2, Shield
+  RefreshCw, CheckCircle, Plus, Wand2, Shield, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { detectDuplicateProjects } from '@/lib/services/duplicateDetector';
 import type { PortfolioData, Project, Repository, Skill } from '@/lib/types';
@@ -151,20 +152,12 @@ export default function ReviewPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Top Navbar */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/dashboard" className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Dashboard
-        </Link>
-        <div className="flex items-center gap-2 font-bold ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={12} />
-          </div>
-          <span className="text-sm font-poppins bg-gradient-to-r from-violet-400 to-purple-300 bg-clip-text text-transparent">
-            PortCraft — Review & Approve Data
-          </span>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
+      <AppHeader
+        currentPath="/review"
+        pageTitle="Review Data"
+        backHref="/dashboard"
+        backLabel="Dashboard"
+        rightActions={
           <Link
             href="/builder"
             className="flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-all hover:scale-105"
@@ -172,8 +165,8 @@ export default function ReviewPage() {
             Choose Theme & Preview
             <ArrowRight size={13} />
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       <div className="pt-20 pb-28 px-4 md:px-6 max-w-5xl mx-auto">
         {/* Header */}
@@ -537,10 +530,17 @@ export default function ReviewPage() {
 
         {/* Bottom Bar */}
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/5 px-6 py-4 flex items-center justify-between">
-          <Link href="/dashboard" className="text-sm text-white/60 hover:text-white transition-colors flex items-center gap-2">
-            <ArrowLeft size={16} />
-            Back to Dashboard
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-sm text-white/50 hover:text-white transition-colors flex items-center gap-1.5">
+              <Home size={15} />
+              Home
+            </Link>
+            <span className="text-white/20">|</span>
+            <Link href="/dashboard" className="text-sm text-white/60 hover:text-white transition-colors flex items-center gap-2">
+              <ArrowLeft size={16} />
+              Dashboard
+            </Link>
+          </div>
           <Link
             href="/builder"
             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm px-6 py-2.5 rounded-xl transition-all hover:scale-105"

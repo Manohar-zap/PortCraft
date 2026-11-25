@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Sparkles, ArrowLeft, ArrowRight, Check, Brain, Lightbulb } from 'lucide-react';
+import { Sparkles, ArrowLeft, ArrowRight, Check, Brain, Lightbulb, Home, Eye, FileText } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { loadPortfolio, savePortfolio } from '@/lib/storage';
 import { PortfolioData, generateId, DEFAULT_PORTFOLIO } from '@/lib/types';
 import { TEMPLATES, getTemplate } from '@/lib/templates';
@@ -113,64 +114,62 @@ function BuilderContent() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Top bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Back
-        </Link>
-        <div className="flex items-center gap-2 font-bold text-lg ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={12} />
-          </div>
-          <span className="text-gradient text-sm font-poppins">PortCraft Builder</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2.5">
-          <Link
-            href="/connect"
-            className="flex items-center gap-1.5 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 px-2.5 py-1.5 rounded-lg transition-all"
-            title="Import data from GitHub, LeetCode, Codeforces"
-          >
-            <Sparkles size={12} className="text-violet-400" />
-            <span className="hidden sm:inline">Connect Profiles</span>
-          </Link>
-          <button
-            type="button"
-            onClick={() => {
-              const sample = getSamplePortfolio(data.templateId || 'spider-verse');
-              setData(sample);
-            }}
-            className="flex items-center gap-1.5 text-xs font-semibold bg-white/[0.06] hover:bg-violet-600/30 text-white/90 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-violet-500/40 transition-all"
-            title="Populate builder with realistic sample data for testing"
-          >
-            <Sparkles size={12} className="text-violet-400" />
-            <span className="hidden sm:inline">Load Sample</span>
-          </button>
-          <button
-            onClick={() => setShowAssistant(!showAssistant)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
-              showAssistant ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
-            }`}
-            title="AI Assistant"
-          >
-            <Brain size={12} className="text-violet-400" />
-            <span className="hidden sm:inline">Assistant</span>
-          </button>
-          <button
-            onClick={() => setShowRecommendations(!showRecommendations)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
-              showRecommendations ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
-            }`}
-            title="Smart Recommendations"
-          >
-            <Lightbulb size={12} className="text-yellow-400" />
-            <span className="hidden sm:inline">Recommend</span>
-          </button>
-          <div className="flex items-center gap-1.5 text-xs text-white/40">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span className="hidden sm:inline">Auto-saved</span>
-          </div>
-        </div>
-      </div>
+      <AppHeader
+        currentPath="/builder"
+        pageTitle="Builder"
+        rightActions={
+          <>
+            <Link
+              href="/preview"
+              className="hidden xs:flex items-center gap-1.5 text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-2.5 py-1.5 rounded-lg transition-all"
+              title="Preview portfolio with current data"
+            >
+              <Eye size={12} className="text-emerald-400" />
+              <span className="hidden sm:inline">Preview</span>
+            </Link>
+            <Link
+              href="/connect"
+              className="hidden md:flex items-center gap-1.5 text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 px-2.5 py-1.5 rounded-lg transition-all"
+              title="Import data from GitHub, LeetCode, Codeforces"
+            >
+              <Sparkles size={12} className="text-violet-400" />
+              <span>Connect</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                const sample = getSamplePortfolio(data.templateId || 'spider-verse');
+                setData(sample);
+              }}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-white/[0.06] hover:bg-violet-600/30 text-white/90 hover:text-white px-2.5 py-1.5 rounded-lg border border-white/10 hover:border-violet-500/40 transition-all"
+              title="Populate builder with realistic sample data for testing"
+            >
+              <Sparkles size={12} className="text-violet-400" />
+              <span className="hidden sm:inline">Sample</span>
+            </button>
+            <button
+              onClick={() => setShowAssistant(!showAssistant)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
+                showAssistant ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+              }`}
+              title="AI Assistant"
+            >
+              <Brain size={12} className="text-violet-400" />
+              <span className="hidden sm:inline">AI</span>
+            </button>
+            <button
+              onClick={() => setShowRecommendations(!showRecommendations)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-all ${
+                showRecommendations ? 'bg-violet-600 text-white' : 'bg-white/[0.05] text-white/70 hover:text-white'
+              }`}
+              title="Smart Recommendations"
+            >
+              <Lightbulb size={12} className="text-yellow-400" />
+              <span className="hidden sm:inline">Tips</span>
+            </button>
+          </>
+        }
+      />
 
       {/* Progress indicator */}
       <div className="fixed top-14 left-0 right-0 z-40 bg-black/80 backdrop-blur border-b border-white/5 px-6 py-3">
@@ -224,14 +223,23 @@ function BuilderContent() {
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/5 px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <button
-            onClick={handleBack}
-            disabled={step === 0}
-            className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
+          {step === 0 ? (
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] text-white/80 hover:text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all border border-white/5"
+            >
+              <Home size={16} />
+              Home
+            </Link>
+          ) : (
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
+            >
+              <ArrowLeft size={16} />
+              Back
+            </button>
+          )}
 
           <div className="flex items-center gap-1.5">
             {STEPS.map((_, i) => (

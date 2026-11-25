@@ -8,8 +8,9 @@ import {
   Loader2, AlertCircle, Eye, Edit2, Trash2, Download, ChevronDown, ChevronUp,
   User, Briefcase, GraduationCap, Code, Award, Star, Settings, Plus, Minus,
   Mail, Phone, MapPin, Globe, BookOpen, Calendar, Building,
-  Folder, Trophy, CheckCircle, Star as StarIcon, Link2
+  Folder, Trophy, CheckCircle, Star as StarIcon, Link2, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { GithubIcon } from '@/components/templates/worlds/WorldIcons';
 
 // Simple LinkedIn icon component
@@ -359,24 +360,16 @@ export default function ResumeImportPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Top Bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Back
-        </Link>
-        <div className="flex items-center gap-2 font-bold text-lg ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={12} />
-          </div>
-          <span className="text-gradient text-sm font-poppins">Resume to Portfolio</span>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
+      <AppHeader
+        currentPath="/resume-import"
+        pageTitle="Resume Import"
+        rightActions={
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-white/40">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
             <span>Auto-saves on complete</span>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Progress Indicator */}
       <div className="fixed top-14 left-0 right-0 z-40 bg-black/80 backdrop-blur border-b border-white/5 px-6 py-3">
@@ -459,14 +452,23 @@ export default function ResumeImportPage() {
       {step !== 'complete' && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/5 px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <button
-              onClick={handleBack}
-              disabled={step === 'upload'}
-              className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] disabled:opacity-30 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
-            >
-              <ArrowLeft size={16} />
-              Back
-            </button>
+            {step === 'upload' ? (
+              <Link
+                href="/"
+                className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] text-white/80 hover:text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all border border-white/5"
+              >
+                <Home size={16} />
+                Home
+              </Link>
+            ) : (
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.08] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
+              >
+                <ArrowLeft size={16} />
+                Back
+              </button>
+            )}
 
             <div className="flex items-center gap-1.5">
               {STEPS.map((_, i) => (
@@ -501,7 +503,14 @@ export default function ResumeImportPage() {
 
       {step === 'complete' && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-black/80 backdrop-blur border-t border-white/5 px-6 py-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-center gap-4">
+          <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-center gap-3 md:gap-4">
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white/5 hover:bg-white/10 text-white/80 hover:text-white px-5 py-3 rounded-xl text-sm font-semibold transition-all border border-white/10"
+            >
+              <Home size={16} />
+              Home
+            </Link>
             <Link
               href="/builder"
               className="flex items-center gap-2 bg-white/10 hover:bg-white/15 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all"

@@ -6,8 +6,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight, ArrowLeft, Sparkles, Check, X, Loader2,
   RefreshCw, ChevronDown, ChevronUp, AlertCircle, ExternalLink,
-  Upload
+  Upload, Home
 } from 'lucide-react';
+import AppHeader from '@/components/ui/AppHeader';
 import { PLATFORM_CONNECTORS } from '@/lib/integrations/registry';
 import type { ConnectorMeta } from '@/lib/integrations/types';
 import { fetchGitHubProfile, validateGitHubUsername } from '@/lib/integrations/github/connector';
@@ -241,33 +242,29 @@ export default function ConnectPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white">
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40 h-14 flex items-center px-6 gap-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-sm text-white/70 hover:text-white transition-colors">
-          <ArrowLeft size={16} />
-          Back
-        </Link>
-        <div className="flex items-center gap-2 font-bold text-lg ml-2">
-          <div className="w-6 h-6 rounded bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
-            <Sparkles size={12} />
+      <AppHeader
+        currentPath="/connect"
+        pageTitle="Connect Profiles"
+        badge={connectedCount > 0 ? `${connectedCount} connected` : undefined}
+        rightActions={
+          <div className="flex items-center gap-2">
+            {connectedCount > 0 && (
+              <Link
+                href="/dashboard"
+                className="hidden sm:flex text-xs font-semibold text-violet-300 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30"
+              >
+                Dashboard
+              </Link>
+            )}
+            <Link
+              href="/builder"
+              className="text-xs text-white/60 hover:text-white transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5"
+            >
+              Skip to Builder →
+            </Link>
           </div>
-          <span className="text-sm font-poppins bg-gradient-to-r from-violet-400 to-purple-300 bg-clip-text text-transparent">
-            PortCraft — Connect Profiles
-          </span>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          {connectedCount > 0 && (
-            <span className="text-xs text-green-400 font-semibold">
-              {connectedCount} platform{connectedCount > 1 ? 's' : ''} connected
-            </span>
-          )}
-          <Link
-            href="/builder"
-            className="text-xs text-white/50 hover:text-white transition-colors px-3 py-1.5 rounded-lg hover:bg-white/5"
-          >
-            Skip →
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       <div className="pt-20 pb-24 px-4 md:px-6 max-w-5xl mx-auto">
         {/* Hero */}
@@ -514,9 +511,9 @@ export default function ConnectPage() {
 
         {/* Bottom Actions */}
         <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur border-t border-white/5 px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="text-sm text-white/50 hover:text-white transition-colors flex items-center gap-2">
-            <ArrowLeft size={15} />
-            Back
+          <Link href="/" className="text-sm text-white/70 hover:text-white transition-colors flex items-center gap-2">
+            <Home size={15} />
+            Back to Home
           </Link>
           <div className="flex items-center gap-3">
             <Link

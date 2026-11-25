@@ -28,7 +28,6 @@ export function getGeminiModels(): string[] {
     configured,
     'gemini-3.5-flash-lite',
     'gemini-3.8-flash',
-    'gemini-2.5-flash',
   ].filter((m): m is string => Boolean(m));
 
   return [...new Set(models)];
@@ -84,7 +83,7 @@ export async function generateGeminiContent(options: GenerateOptions): Promise<G
           config: {
             systemInstruction: options.systemInstruction,
             temperature: options.temperature ?? 0.7,
-            maxOutputTokens: options.maxOutputTokens ?? 1500,
+            maxOutputTokens: options.maxOutputTokens ?? 4096,
             responseMimeType: options.responseMimeType,
           },
         });
@@ -99,17 +98,25 @@ export async function generateGeminiContent(options: GenerateOptions): Promise<G
         const errorMsg = err instanceof Error ? err.message : String(err);
         lastError = err instanceof Error ? err : new Error(errorMsg);
 
-        // If it's a 404 (model deprecated), try next model immediately with same key
-        if (errorMsg.includes('404') || errorMsg.includes('not found') || errorMsg.includes('no longer available')) {
+        // If it's a 404 (model deprecated) or 503 (model experiencing high demand), try next model immediately with same key
+        if (
+          errorMsg.includes('404') ||
+          errorMsg.includes('not found') ||
+          errorMsg.includes('no longer available') ||
+          errorMsg.includes('503') ||
+          errorMsg.includes('high demand') ||
+          errorMsg.includes('UNAVAILABLE')
+        ) {
           continue;
         }
 
-        // If 429 (rate limit) or 503 (high demand), break model loop to try the next API key
-        if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('503') || errorMsg.includes('high demand')) {
+        // If 429 (rate limit) or quota exceeded, break model loop to try the next API key
+        if (errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
           break;
         }
 
-        // Other errors, continue to next fallback
+        // Other errors, continue to next model fallback
+        continue;
       }
     }
   }

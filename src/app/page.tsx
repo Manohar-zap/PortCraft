@@ -7,7 +7,7 @@ import {
   ArrowRight, Sparkles, Download, Palette, Eye,
   Globe, Shield, Zap, Code2, ChevronDown, Star,
   CheckCircle, ExternalLink, Link2, Share2, Layers,
-  FileText, Brain
+  FileText, Brain, Menu, X, LayoutDashboard
 } from 'lucide-react';
 import { TEMPLATES, THEME_CATEGORIES, ThemeCategory } from '@/lib/templates';
 import SamplePreviewModal from '@/components/preview/SamplePreviewModal';
@@ -37,26 +37,32 @@ export default function LandingPage() {
 
 /* ─── Navigation ─────────────────────────────────────────── */
 function Nav() {
-  const links = ['Connect', 'Features', 'How It Works', 'Templates', 'FAQ'];
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/40">
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center">
+        <Link href="/" className="flex items-center gap-2 font-bold text-xl hover:opacity-90 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg shadow-violet-700/20">
             <Sparkles size={16} className="text-white" />
           </div>
           <span className="text-gradient font-poppins">PortCraft</span>
         </Link>
+
         {/* Desktop links */}
-        <div className="hidden md:flex items-center gap-6 text-sm text-white/70">
+        <div className="hidden lg:flex items-center gap-5 text-sm text-white/70">
           <Link href="/connect" className="text-violet-400 hover:text-violet-300 font-semibold flex items-center gap-1 transition-colors">
             <Sparkles size={13} />
-            Connect Profiles
+            Connect
           </Link>
           <Link href="/resume-import" className="text-green-400 hover:text-green-300 font-semibold flex items-center gap-1 transition-colors">
             <FileText size={13} />
             Resume Import
+          </Link>
+          <Link href="/dashboard" className="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition-colors">
+            <LayoutDashboard size={13} />
+            Dashboard
           </Link>
           <Link href="/intelligence" className="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition-colors">
             <Brain size={13} />
@@ -67,24 +73,103 @@ function Nav() {
           <a href="#templates" className="hover:text-white transition-colors">Templates (30)</a>
           <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
         </div>
-        {/* CTA */}
-        <div className="flex items-center gap-2.5">
+
+        {/* CTA & Mobile Toggle */}
+        <div className="flex items-center gap-2">
           <Link
             href="/connect"
-            className="hidden sm:flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-all"
+            className="hidden sm:flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all"
           >
             <Sparkles size={13} className="text-violet-400" />
             Connect
           </Link>
           <Link
             href="/builder"
-            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all hover:scale-105 active:scale-95"
+            className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white text-xs sm:text-sm font-semibold px-3.5 sm:px-4 py-2 rounded-lg transition-all hover:scale-105 active:scale-95 shadow-md shadow-violet-600/30"
           >
             Create Portfolio
-            <ArrowRight size={15} />
+            <ArrowRight size={14} />
           </Link>
+          <button
+            onClick={() => setMobileOpen(!mobileOpen)}
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/10 border border-white/10 text-white/80 transition-colors"
+            aria-label="Toggle navigation menu"
+          >
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile Drawer */}
+      {mobileOpen && (
+        <div className="lg:hidden bg-[#0c0c14]/95 border-b border-white/10 backdrop-blur-2xl px-5 py-4 space-y-2">
+          <div className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mb-2">
+            Navigation Menu
+          </div>
+          <Link
+            href="/"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white hover:bg-white/5 transition-colors"
+          >
+            <Sparkles size={15} className="text-violet-400" />
+            Home (Current)
+          </Link>
+          <Link
+            href="/builder"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-white hover:bg-white/5 transition-colors"
+          >
+            <Layers size={15} className="text-violet-400" />
+            Portfolio Builder
+          </Link>
+          <Link
+            href="/resume-import"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-green-300 hover:bg-white/5 transition-colors"
+          >
+            <FileText size={15} className="text-green-400" />
+            Resume to Portfolio (AI)
+          </Link>
+          <Link
+            href="/connect"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-violet-300 hover:bg-white/5 transition-colors"
+          >
+            <Sparkles size={15} className="text-violet-400" />
+            Connect Profiles (GitHub, etc.)
+          </Link>
+          <Link
+            href="/dashboard"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-amber-300 hover:bg-white/5 transition-colors"
+          >
+            <LayoutDashboard size={15} className="text-amber-400" />
+            Profile Dashboard
+          </Link>
+          <Link
+            href="/preview"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-cyan-300 hover:bg-white/5 transition-colors"
+          >
+            <Eye size={15} className="text-cyan-400" />
+            Live Preview
+          </Link>
+          <Link
+            href="/intelligence"
+            onClick={() => setMobileOpen(false)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-300 hover:bg-white/5 transition-colors"
+          >
+            <Brain size={15} className="text-blue-400" />
+            Intelligence Hub
+          </Link>
+          <div className="pt-2 border-t border-white/5 flex flex-wrap gap-3 text-xs text-white/50 px-2">
+            <a href="#features" onClick={() => setMobileOpen(false)} className="hover:text-white">Features</a>
+            <a href="#how-it-works" onClick={() => setMobileOpen(false)} className="hover:text-white">How It Works</a>
+            <a href="#templates" onClick={() => setMobileOpen(false)} className="hover:text-white">Templates (30)</a>
+            <a href="#faq" onClick={() => setMobileOpen(false)} className="hover:text-white">FAQ</a>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
