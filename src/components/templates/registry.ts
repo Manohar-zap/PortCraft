@@ -1,5 +1,6 @@
 import React from 'react';
 import { PortfolioData } from '@/lib/types';
+import { getTemplate } from '@/lib/templates';
 
 // The 10 Flagship Worlds
 import SpiderVerseTheme from './worlds/spiderverse/SpiderVerseTheme';
@@ -89,6 +90,6 @@ export const THEME_REGISTRY: Record<string, React.ComponentType<{ data: Portfoli
 
 export function getThemeComponent(templateId?: string): React.ComponentType<{ data: PortfolioData }> {
   if (!templateId) return SpiderVerseTheme;
-  const normalized = templateId.toLowerCase().trim();
-  return THEME_REGISTRY[normalized] || SpiderVerseTheme;
+  const tpl = getTemplate(templateId);
+  return THEME_REGISTRY[tpl.id] || THEME_REGISTRY[templateId.toLowerCase().trim()] || SpiderVerseTheme;
 }

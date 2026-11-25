@@ -2,8 +2,11 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, X, Send, Loader2, Check, Ban, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Sparkles, X, Send, Loader2, Check, Ban, ChevronDown, ChevronUp, MessageCircle, Eye } from 'lucide-react';
 import type { PortfolioData } from '@/lib/types';
+import { getTemplate } from '@/lib/templates';
+import { savePortfolio } from '@/lib/storage';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -105,29 +108,47 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
   };
 
   const applyAction = (action: ProposedAction, actionKey?: string) => {
+    let updatedData: PortfolioData | null = null;
+
     if (action.type === 'update_bio' && action.proposedValue) {
-      updateData({ personal: { ...data.personal, bio: action.proposedValue } });
+      updatedData = { ...data, personal: { ...data.personal, bio: action.proposedValue } };
+      updateData(updatedData);
+      savePortfolio(updatedData);
     } else if (action.type === 'update_headline' && action.proposedValue) {
-      updateData({ personal: { ...data.personal, title: action.proposedValue } });
+      updatedData = { ...data, personal: { ...data.personal, title: action.proposedValue } };
+      updateData(updatedData);
+      savePortfolio(updatedData);
     } else if (action.type === 'update_project' && action.field && action.proposedValue) {
       const updatedProjects = data.projects.map(p =>
         p.id === action.field ? { ...p, description: action.proposedValue! } : p
       );
-      updateData({ projects: updatedProjects });
+      updatedData = { ...data, projects: updatedProjects };
+      updateData(updatedData);
+      savePortfolio(updatedData);
     } else if (action.type === 'switch_theme' && (action.proposedValue || action.field)) {
       const targetTheme = action.proposedValue || action.field;
       if (targetTheme) {
-        updateData({ templateId: targetTheme });
+        const resolved = getTemplate(targetTheme);
+        updatedData = {
+          ...data,
+          templateId: resolved.id,
+          theme: { ...data.theme, ...resolved.defaultTheme },
+        };
+        updateData(updatedData);
+        savePortfolio(updatedData);
       }
     } else if (action.type === 'add_skill' && action.proposedValue) {
       const exists = data.skills.some(s => s.name.toLowerCase() === action.proposedValue!.toLowerCase());
       if (!exists) {
-        updateData({
+        updatedData = {
+          ...data,
           skills: [
             ...data.skills,
             { id: `skill-${Date.now()}`, name: action.proposedValue, level: 3, category: 'Technical' }
           ]
-        });
+        };
+        updateData(updatedData);
+        savePortfolio(updatedData);
       }
     }
     if (actionKey) {
@@ -208,34 +229,66 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                         {/* Proposed Actions */}
                         {msg.actions && msg.actions.length > 0 && (
                           <div className="mt-2 space-y-1.5">
-                            {msg.actions.map((action, ai) => (
-                              <div key={ai} className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-2.5 text-xs">
-                                <div className="text-white/60 mb-1.5 font-medium">{action.description}</div>
-                                {action.proposedValue && (
-                                  <div className="bg-violet-500/10 border border-violet-500/20 rounded p-1.5 text-violet-200 mb-2 text-[11px] leading-relaxed">
-                                    {action.proposedValue.substring(0, 120)}
-                                    {action.proposedValue.length > 120 ? '...' : ''}
-                                  </div>
-                                )}
-                                <div className="flex gap-1.5">
-                                  {appliedActions[`${msg.content}-${ai}`] ? (
-                                    <span className="flex items-center gap-1 bg-green-500/20 text-green-300 px-2.5 py-1 rounded text-[10px] font-semibold border border-green-500/30">
-                                      <Check size={10} /> Applied
-                                    </span>
+                            {msg.actions.map((action, ai) => {
+                              const resolvedTpl = action.type === 'switch_theme' && (action.proposedValue || action.field)
+                                ? getTemplate(action.proposedValue || action.field)
+                                : null;
+                              const actionKey = `${msg.content}-${ai}`;
+                              const isApplied = appliedActions[actionKey];
+                              const isSkipped = appliedActions[`${actionKey}-skipped`];
+
+                              return (
+                                <div key={ai} className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-2.5 text-xs">
+                                  <div className="text-white/60 mb-1.5 font-medium">{action.description}</div>
+                                  {resolvedTpl ? (
+                                    <div className="bg-violet-500/10 border border-violet-500/20 rounded p-1.5 text-violet-200 mb-2 text-[11px] flex items-center justify-between">
+                                      <span>Theme: <strong className="text-violet-100">{resolvedTpl.name}</strong></span>
+                                      <span className="text-[10px] text-white/40">({resolvedTpl.id})</span>
+                                    </div>
+                                  ) : action.proposedValue ? (
+                                    <div className="bg-violet-500/10 border border-violet-500/20 rounded p-1.5 text-violet-200 mb-2 text-[11px] leading-relaxed">
+                                      {action.proposedValue.substring(0, 120)}
+                                      {action.proposedValue.length > 120 ? '...' : ''}
+                                    </div>
+                                  ) : null}
+                                  
+                                  {isApplied ? (
+                                    <div className="flex items-center justify-between gap-2 pt-1 w-full">
+                                      <span className="flex items-center gap-1 bg-green-500/20 text-green-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-green-500/30">
+                                        <Check size={10} /> Applied Successfully ✓
+                                      </span>
+                                      {action.type === 'switch_theme' && (
+                                        <Link
+                                          href="/preview"
+                                          className="text-[11px] font-semibold text-violet-300 hover:text-white underline flex items-center gap-1 transition-colors"
+                                        >
+                                          <Eye size={11} /> View Preview →
+                                        </Link>
+                                      )}
+                                    </div>
+                                  ) : isSkipped ? (
+                                    <div className="pt-0.5">
+                                      <span className="text-white/40 text-[10px] italic">Skipped</span>
+                                    </div>
                                   ) : (
-                                    <button
-                                      onClick={() => applyAction(action, `${msg.content}-${ai}`)}
-                                      className="flex items-center gap-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 px-2 py-1 rounded text-[10px] font-semibold transition-all"
-                                    >
-                                      <Check size={10} /> Apply
-                                    </button>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        onClick={() => applyAction(action, actionKey)}
+                                        className="flex items-center gap-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 px-2.5 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 active:scale-95"
+                                      >
+                                        <Check size={10} /> Apply
+                                      </button>
+                                      <button
+                                        onClick={() => setAppliedActions(prev => ({ ...prev, [`${actionKey}-skipped`]: true }))}
+                                        className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded text-[10px] transition-all"
+                                      >
+                                        <Ban size={10} /> Skip
+                                      </button>
+                                    </div>
                                   )}
-                                  <button className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded text-[10px] transition-all">
-                                    <Ban size={10} /> Skip
-                                  </button>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

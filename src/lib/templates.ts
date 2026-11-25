@@ -1044,20 +1044,116 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
-// Helper to look up template by ID, with alias support for earlier 5 IDs
+// Helper to look up template by ID or alias, with intelligent fuzzy matching
 export function getTemplate(id?: string): Template {
   if (!id) return TEMPLATES[0];
 
-  // Alias map for legacy template IDs
+  const raw = id.toLowerCase().trim();
+  const normalized = raw.replace(/[\s_]+/g, '-');
+
+  // 1. Direct ID match
+  const exact = TEMPLATES.find((t) => t.id === normalized || t.id === raw);
+  if (exact) return exact;
+
+  // 2. Comprehensive alias & keyword dictionary
   const aliasMap: Record<string, string> = {
-    minimalist: 'infinite-museum',
-    tech: 'code-reality',
-    creative: 'neon-nomad',
+    // Aliases & common AI variations
+    'neon-pulse': 'neon-nomad',
+    'neon_pulse': 'neon-nomad',
+    'neon': 'neon-nomad',
+    'cyberpunk': 'night-city',
+    'cyber': 'night-city',
+    'minimalist': 'infinite-museum',
+    'minimal': 'infinite-museum',
+    'editorial': 'infinite-museum',
+    'museum': 'infinite-museum',
+    'tech': 'code-reality',
+    'developer': 'code-reality',
+    'coding': 'code-reality',
+    'creative': 'neon-nomad',
     'miles-morales': 'spider-verse',
-    elegant: 'desert-dynasty',
+    'miles': 'spider-verse',
+    'spiderman': 'spider-verse',
+    'spider': 'spider-verse',
+    'elegant': 'desert-dynasty',
+    'batman': 'gotham-noir',
+    'gotham': 'gotham-noir',
+    'noir': 'gotham-noir',
+    'ironman': 'arc-reactor',
+    'iron-man': 'arc-reactor',
+    'tony-stark': 'arc-reactor',
+    'arc': 'arc-reactor',
+    'doctor-strange': 'mystic-dimension',
+    'mystic': 'mystic-dimension',
+    'magic': 'mystic-dimension',
+    'steampunk': 'timekeeper',
+    'clockwork': 'timekeeper',
+    'matrix': 'digital-grid',
+    'terminal': 'digital-grid',
+    'retro': 'digital-grid',
+    'retro-rpg': 'blocklands',
+    'minecraft': 'blocklands',
+    'pixel': 'blocklands',
+    'lego': 'brickverse',
+    'bricks': 'brickverse',
+    'comic': 'comic-pop',
+    'manga': 'anime-dimension',
+    'anime': 'anime-dimension',
+    'synthwave': 'vice-city',
+    'miami': 'vice-city',
+    'gta': 'vice-city',
+    'ninja': 'assassin',
+    'creed': 'assassin',
+    'space': 'galactic-frontier',
+    'star-wars': 'galactic-frontier',
+    'orbital': 'orbital-academy',
+    'ice': 'frostbyte',
+    'arctic': 'frostbyte',
+    'fire': 'solar-forge',
+    'forge': 'solar-forge',
+    'ocean': 'deep-sea-explorer',
+    'underwater': 'deep-sea-explorer',
+    'surreal': 'dreamscape',
+    'dreams': 'dreamscape',
+    'post-apocalyptic': 'wasteland-survivor',
+    'fallout': 'wasteland-survivor',
+    'mad-max': 'wasteland-survivor',
+    'library': 'celestial-library',
+    'scholar': 'celestial-library',
+    'books': 'celestial-library',
+    'robot': 'mecha-workshop',
+    'mecha': 'mecha-workshop',
+    'gundam': 'mecha-workshop',
+    'ink': 'kingdom-of-ink',
+    'samurai': 'kingdom-of-ink',
+    'calligraphy': 'kingdom-of-ink',
+    'quantum': 'quantum-lab',
+    'physics': 'quantum-lab',
+    'heaven': 'cloud-kingdom',
+    'cloud': 'cloud-kingdom',
+    'hacker': 'shadow-protocol',
+    'shadow': 'shadow-protocol',
   };
 
-  const resolvedId = aliasMap[id] || id;
-  const match = TEMPLATES.find((t) => t.id === resolvedId);
-  return match || TEMPLATES[0];
+  if (aliasMap[normalized]) {
+    const aliased = TEMPLATES.find((t) => t.id === aliasMap[normalized]);
+    if (aliased) return aliased;
+  }
+
+  // 3. Substring matching against template ID, name, or family
+  const substringMatch = TEMPLATES.find((t) => {
+    const tid = t.id.toLowerCase();
+    const tname = t.name.toLowerCase();
+    const tfamily = t.family.toLowerCase();
+    return tid.includes(normalized) ||
+           normalized.includes(tid) ||
+           tname.includes(raw) ||
+           raw.includes(tname) ||
+           tfamily.includes(normalized) ||
+           normalized.includes(tfamily);
+  });
+
+  if (substringMatch) return substringMatch;
+
+  return TEMPLATES[0];
 }

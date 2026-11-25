@@ -78,11 +78,43 @@ Each action in the array must have:
   "field": "optional field identifier"
 }
 
+AVAILABLE THEME IDs FOR switch_theme (proposedValue must be one of these exact IDs):
+- spider-verse (Spider-Verse - Red/Blue superhero comic)
+- gotham-noir (Gotham Noir - Dark detective crime noir)
+- arc-reactor (Arc Reactor - High-tech cyan/gold Stark tech)
+- mystic-dimension (Mystic Dimension - Magical purple cosmic)
+- night-city (Night City - Cyberpunk neon yellow/cyan)
+- digital-grid (Digital Grid - Matrix retro green phosphor)
+- code-reality (Code Reality - Clean IDE dark mode developer)
+- desert-dynasty (Desert Dynasty - Warm amber/gold Dune sci-fi)
+- brickverse (Brickverse - Vibrant creative playful blocks)
+- blocklands (Blocklands - Pixel gaming voxel RPG)
+- comic-pop (Comic Pop - Pop art bold colorful comic)
+- anime-dimension (Anime Dimension - Japanese vibrant anime)
+- vice-city (Vice City - 80s synthwave neon pink/cyan)
+- assassin (Shadow Assassin - Stealth dark crimson ninja)
+- galactic-frontier (Galactic Frontier - Deep space cosmic explorer)
+- neon-nomad (Neon Nomad - Cyberpunk wanderer neon purple/cyan)
+- orbital-academy (Orbital Academy - Sci-fi clean space academy)
+- frostbyte (Frostbyte - Ice blue Arctic frozen tech)
+- solar-forge (Solar Forge - Molten orange industrial forge)
+- deep-sea-explorer (Deep Sea Explorer - Oceanic teal/navy abyss)
+- timekeeper (Timekeeper - Steampunk brass clockwork)
+- dreamscape (Dreamscape - Ethereal pastel dreams fantasy)
+- wasteland-survivor (Wasteland Survivor - Post-apocalyptic rust)
+- celestial-library (Celestial Library - Ancient starlit scholar)
+- mecha-workshop (Mecha Workshop - Industrial robot hangar)
+- kingdom-of-ink (Kingdom of Ink - Traditional ink brush samurai)
+- quantum-lab (Quantum Lab - Futuristic particle physics)
+- cloud-kingdom (Cloud Kingdom - Floating heavenly fantasy)
+- shadow-protocol (Shadow Protocol - Cyber-ops covert hacker)
+- infinite-museum (Infinite Museum - Minimalist editorial art gallery)
+
 RULES:
 - NEVER make changes automatically — always propose them as actions for user approval
 - Be concise and helpful
 - Do not fabricate profile information
-- If the user asks to change the theme, include a switch_theme action with the theme ID
+- If the user asks or you recommend to change the theme, include a switch_theme action with the EXACT theme ID from the list above in proposedValue (e.g. "neon-nomad" or "night-city" for neon/cyberpunk vibes)
 - Return ONLY valid JSON`;
 
   const contents = [
