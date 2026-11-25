@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Sparkles, X, Send, Loader2, Check, Ban, ChevronDown, ChevronUp, MessageCircle, Eye } from 'lucide-react';
+import { Sparkles, X, Send, Loader2, Check, Ban, ChevronDown, ChevronUp, MessageCircle, Eye, RotateCcw } from 'lucide-react';
 import type { PortfolioData } from '@/lib/types';
 import { getTemplate } from '@/lib/templates';
 import { savePortfolio } from '@/lib/storage';
@@ -41,8 +41,16 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
   const [minimized, setMinimized] = useState(false);
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
   const [appliedActions, setAppliedActions] = useState<Record<string, boolean>>({});
+  const [previousValues, setPreviousValues] = useState<Record<string, string>>({});
+  const initialThemeRef = useRef<string>(data.templateId || 'spider-verse');
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (data.templateId && (!initialThemeRef.current || initialThemeRef.current === 'spider-verse')) {
+      initialThemeRef.current = data.templateId;
+    }
+  }, [data.templateId]);
 
   // Check AI availability
   useEffect(() => {
@@ -111,14 +119,24 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
     let updatedData: PortfolioData | null = null;
 
     if (action.type === 'update_bio' && action.proposedValue) {
+      if (actionKey && previousValues[actionKey] === undefined) {
+        setPreviousValues(prev => ({ ...prev, [actionKey]: data.personal.bio || '' }));
+      }
       updatedData = { ...data, personal: { ...data.personal, bio: action.proposedValue } };
       updateData(updatedData);
       savePortfolio(updatedData);
     } else if (action.type === 'update_headline' && action.proposedValue) {
+      if (actionKey && previousValues[actionKey] === undefined) {
+        setPreviousValues(prev => ({ ...prev, [actionKey]: data.personal.title || '' }));
+      }
       updatedData = { ...data, personal: { ...data.personal, title: action.proposedValue } };
       updateData(updatedData);
       savePortfolio(updatedData);
     } else if (action.type === 'update_project' && action.field && action.proposedValue) {
+      const currentProj = data.projects.find(p => p.id === action.field);
+      if (actionKey && previousValues[actionKey] === undefined) {
+        setPreviousValues(prev => ({ ...prev, [actionKey]: currentProj?.description || '' }));
+      }
       const updatedProjects = data.projects.map(p =>
         p.id === action.field ? { ...p, description: action.proposedValue! } : p
       );
@@ -128,6 +146,9 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
     } else if (action.type === 'switch_theme' && (action.proposedValue || action.field)) {
       const targetTheme = action.proposedValue || action.field;
       if (targetTheme) {
+        if (actionKey && previousValues[actionKey] === undefined) {
+          setPreviousValues(prev => ({ ...prev, [actionKey]: data.templateId || initialThemeRef.current || 'spider-verse' }));
+        }
         const resolved = getTemplate(targetTheme);
         updatedData = {
           ...data,
@@ -152,7 +173,56 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
       }
     }
     if (actionKey) {
-      setAppliedActions(prev => ({ ...prev, [actionKey]: true }));
+      setAppliedActions(prev => ({ ...prev, [actionKey]: true, [`${actionKey}-skipped`]: false }));
+    }
+  };
+
+  const removeAction = (action: ProposedAction, actionKey?: string) => {
+    let updatedData: PortfolioData | null = null;
+
+    if (action.type === 'switch_theme') {
+      const prevTheme = (actionKey && previousValues[actionKey]) || initialThemeRef.current || 'spider-verse';
+      const resolved = getTemplate(prevTheme);
+      updatedData = {
+        ...data,
+        templateId: resolved.id,
+        theme: { ...data.theme, ...resolved.defaultTheme },
+      };
+      updateData(updatedData);
+      savePortfolio(updatedData);
+    } else if (action.type === 'add_skill' && action.proposedValue) {
+      updatedData = {
+        ...data,
+        skills: data.skills.filter(s => s.name.toLowerCase() !== action.proposedValue!.toLowerCase())
+      };
+      updateData(updatedData);
+      savePortfolio(updatedData);
+    } else if (action.type === 'update_bio') {
+      const prevBio = actionKey && previousValues[actionKey] !== undefined ? previousValues[actionKey] : '';
+      updatedData = { ...data, personal: { ...data.personal, bio: prevBio } };
+      updateData(updatedData);
+      savePortfolio(updatedData);
+    } else if (action.type === 'update_headline') {
+      const prevHeadline = actionKey && previousValues[actionKey] !== undefined ? previousValues[actionKey] : '';
+      updatedData = { ...data, personal: { ...data.personal, title: prevHeadline } };
+      updateData(updatedData);
+      savePortfolio(updatedData);
+    } else if (action.type === 'update_project' && action.field) {
+      const prevDesc = actionKey && previousValues[actionKey] !== undefined ? previousValues[actionKey] : '';
+      const updatedProjects = data.projects.map(p =>
+        p.id === action.field ? { ...p, description: prevDesc } : p
+      );
+      updatedData = { ...data, projects: updatedProjects };
+      updateData(updatedData);
+      savePortfolio(updatedData);
+    }
+
+    if (actionKey) {
+      setAppliedActions(prev => {
+        const next = { ...prev };
+        delete next[actionKey];
+        return next;
+      });
     }
   };
 
@@ -234,11 +304,38 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                                 ? getTemplate(action.proposedValue || action.field)
                                 : null;
                               const actionKey = `${msg.content}-${ai}`;
-                              const isApplied = appliedActions[actionKey];
                               const isSkipped = appliedActions[`${actionKey}-skipped`];
 
+                              let isCurrentlyActive = false;
+                              let activeLabel = 'Selected ✓';
+
+                              if (action.type === 'switch_theme' && resolvedTpl) {
+                                isCurrentlyActive = (data.templateId || '').toLowerCase() === resolvedTpl.id.toLowerCase();
+                                activeLabel = 'Selected ✓';
+                              } else if (action.type === 'add_skill' && action.proposedValue) {
+                                isCurrentlyActive = data.skills.some(
+                                  s => s.name.toLowerCase() === action.proposedValue!.toLowerCase()
+                                );
+                                activeLabel = 'Added ✓';
+                              } else if (action.type === 'update_bio' && action.proposedValue) {
+                                isCurrentlyActive = data.personal.bio === action.proposedValue;
+                                activeLabel = 'Applied ✓';
+                              } else if (action.type === 'update_headline' && action.proposedValue) {
+                                isCurrentlyActive = data.personal.title === action.proposedValue;
+                                activeLabel = 'Applied ✓';
+                              } else if (action.type === 'update_project' && action.field && action.proposedValue) {
+                                isCurrentlyActive = data.projects.some(
+                                  p => p.id === action.field && p.description === action.proposedValue
+                                );
+                                activeLabel = 'Applied ✓';
+                              } else {
+                                isCurrentlyActive = Boolean(appliedActions[actionKey]);
+                              }
+
                               return (
-                                <div key={ai} className="bg-white/[0.04] border border-white/[0.08] rounded-lg p-2.5 text-xs">
+                                <div key={ai} className={`border rounded-lg p-2.5 text-xs transition-colors ${
+                                  isCurrentlyActive ? 'bg-violet-950/20 border-violet-500/40' : 'bg-white/[0.04] border-white/[0.08]'
+                                }`}>
                                   <div className="text-white/60 mb-1.5 font-medium">{action.description}</div>
                                   {resolvedTpl ? (
                                     <div className="bg-violet-500/10 border border-violet-500/20 rounded p-1.5 text-violet-200 mb-2 text-[11px] flex items-center justify-between">
@@ -252,11 +349,21 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                                     </div>
                                   ) : null}
                                   
-                                  {isApplied ? (
+                                  {isCurrentlyActive ? (
                                     <div className="flex items-center justify-between gap-2 pt-1 w-full">
-                                      <span className="flex items-center gap-1 bg-green-500/20 text-green-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-green-500/30">
-                                        <Check size={10} /> Applied Successfully ✓
-                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="flex items-center gap-1 bg-green-500/20 text-green-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-green-500/30">
+                                          <Check size={10} /> {activeLabel}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => removeAction(action, actionKey)}
+                                          className="flex items-center gap-1 bg-red-500/15 hover:bg-red-500/30 text-red-300 border border-red-500/30 px-2 py-0.5 rounded text-[10px] font-semibold transition-all hover:scale-105 active:scale-95"
+                                          title="Remove or undo this selection"
+                                        >
+                                          <RotateCcw size={10} /> Remove
+                                        </button>
+                                      </div>
                                       {action.type === 'switch_theme' && (
                                         <Link
                                           href="/preview"
@@ -267,18 +374,30 @@ export default function ChatWidget({ data, updateData, selectedTheme }: Props) {
                                       )}
                                     </div>
                                   ) : isSkipped ? (
-                                    <div className="pt-0.5">
+                                    <div className="flex items-center justify-between pt-0.5 w-full">
                                       <span className="text-white/40 text-[10px] italic">Skipped</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setAppliedActions(prev => ({ ...prev, [`${actionKey}-skipped`]: false }));
+                                          applyAction(action, actionKey);
+                                        }}
+                                        className="text-[10px] text-violet-300 hover:text-white underline font-semibold"
+                                      >
+                                        Select
+                                      </button>
                                     </div>
                                   ) : (
                                     <div className="flex gap-1.5">
                                       <button
+                                        type="button"
                                         onClick={() => applyAction(action, actionKey)}
-                                        className="flex items-center gap-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 px-2.5 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 active:scale-95"
+                                        className="flex items-center gap-1 bg-violet-600/30 hover:bg-violet-600/50 text-violet-200 border border-violet-500/40 px-2.5 py-1 rounded text-[10px] font-semibold transition-all hover:scale-105 active:scale-95"
                                       >
-                                        <Check size={10} /> Apply
+                                        <Check size={10} /> Select
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() => setAppliedActions(prev => ({ ...prev, [`${actionKey}-skipped`]: true }))}
                                         className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded text-[10px] transition-all"
                                       >
